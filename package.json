@@ -1,0 +1,19 @@
+{
+	"name": "sc-mcu-wave-romdumper",
+	"version": "0.1.0",
+	"description": "Dump the wave ROMs (and the MCU's internal ROM) of a Roland SC series over MIDI",
+	"type": "module",
+	"repository": {
+		"type": "git",
+		"url": "git+ssh://git@github.com/shingo45endo/sc-mcu-wave-romdumper.git"
+	},
+	"author": "shingo45endo",
+	"license": "MIT",
+	"engines": {
+		"node": ">=20"
+	},
+	"bugs": {
+		"url": "https://github.com/shingo45endo/sc-mcu-wave-romdumper/issues"
+	},
+	"homepage": "https://github.com/shingo45endo/sc-mcu-wave-romdumper#readme"
+}

@@ -1,0 +1,970 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>sc-mcu-wave-romdumper - dump over MIDI</title>
+	<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+	<style>
+		#my-files td {
+			font-variant-numeric: tabular-nums;
+		}
+		#my-log {
+			height: 12rem;
+			overflow-y: auto;
+			font-family: var(--bs-font-monospace);
+			font-size: .8125rem;
+			white-space: pre-wrap;
+		}
+		#my-error-text {
+			white-space: pre-wrap;
+			overflow-wrap: anywhere;
+		}
+
+		.my-romfig {
+			display: inline-flex;
+			align-items: stretch;
+			gap: 3px;
+			vertical-align: middle;
+		}
+		.my-romfig .my-rf-gap {
+			width: .3rem;
+			flex: none;
+		}
+		.my-romfig .my-rf-mcu,
+		.my-romfig .my-rf-slot {
+			height: 1.05rem;
+			border-radius: 2px;
+			flex: none;
+			overflow: hidden;
+		}
+		.my-romfig .my-rf-mcu {
+			width: 2.25rem;
+			background: var(--bs-secondary);
+		}
+		.my-romfig .my-rf-slot {
+			width: 5rem;
+			background: var(--bs-secondary-bg);
+		}
+		.my-romfig .my-rf-mcu > i,
+		.my-romfig .my-rf-slot > i {
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			height: 100%;
+			color: #fff;
+			font-style: normal;
+			font-size: .75rem;
+			line-height: 1;
+			letter-spacing: -.01em;
+			white-space: nowrap;
+		}
+		.my-romfig .my-rf-slot > i {
+			background: var(--bs-primary);
+		}
+		.my-romfig .my-rf-mcu.my-rf-none {
+			background: none;
+			box-shadow: inset 0 0 0 1px var(--bs-border-color);
+		}
+		#my-verdict code {
+			white-space: pre-wrap;
+		}
+	</style>
+</head>
+<body>
+	<!-- Navbar -->
+	<nav class="navbar navbar-light bg-light sticky-top">
+		<div class="container align-items-start">
+			<h1 class="h6"><a href="https://github.com/shingo45endo/sc-mcu-wave-romdumper" class="navbar-brand" target="_blank" rel="noopener noreferrer">sc-mcu-wave-romdumper</a></h1>
+			<ul class="nav nav-pills">
+				<li class="nav-item"><a class="nav-link" href="index.html">Patch ROM</a></li>
+				<li class="nav-item"><a class="nav-link active" aria-current="page" href="dump.html">Dump over MIDI</a></li>
+			</ul>
+		</div>
+	</nav>
+
+	<!-- Main screen -->
+	<main class="container mb-3">
+		<div class="alert alert-warning" role="alert">
+			<ul class="my-0">
+				<li>The synth must already be running a firmware ROM patched by the <a href="index.html" class="alert-link">patcher</a>.</li>
+				<li>The synth will not be permanently modified by the operations performed here. The dumper only lives in RAM (in the drum set 2 parameter area), and disappears at the next GS reset or power-off.</li>
+			</ul>			
+		</div>
+
+		<div class="row">
+			<div class="col-lg-6 mt-3">
+				<h2 class="h5">1. Connection</h2>
+				<p class="mt-0">Choose the MIDI ports your synth uses, then check the connection.</p>
+				<div class="input-group mb-2">
+					<label class="input-group-text" for="my-midi-in-devices" style="width: 5.5rem;">MIDI In</label>
+					<select id="my-midi-in-devices" class="form-select"></select>
+				</div>
+				<div class="input-group mb-2">
+					<label class="input-group-text" for="my-midi-out-devices" style="width: 5.5rem;">MIDI Out</label>
+					<select id="my-midi-out-devices" class="form-select"></select>
+				</div>
+				<div class="d-flex align-items-center gap-2">
+					<button id="my-detect" class="btn btn-outline-primary" type="button" disabled>Check connection</button>
+					<span id="my-connection-status" class="small text-success d-none">Connected</span>
+				</div>
+				<div id="my-found" class="form-text"></div>
+				<div id="my-verdict" class="d-none"></div>
+			</div>
+			<div class="col-lg-6 mt-3">
+				<h2 class="h5">2. Dump</h2>
+				<div id="my-models" class="mb-3"></div>
+				<button id="my-start" class="btn btn-primary" type="button" disabled>Start dump</button>
+				<button id="my-stop" class="btn btn-outline-secondary d-none" type="button">Stop</button>
+			</div>
+		</div>
+
+		<div id="my-running" class="d-none">
+			<div class="alert alert-info d-flex align-items-center gap-2 mt-3 mb-0" role="status">
+				<div class="spinner-border spinner-border-sm flex-shrink-0" aria-hidden="true"></div>
+				<div><strong>Dumping.</strong> Please keep this tab open. Do not send anything else to the synth until it finishes.</div>
+			</div>
+		</div>
+
+		<h2 class="h5  mt-3">Progress:</h2>
+		<div class="progress mt-3" role="progressbar" aria-label="dump progress">
+			<div id="my-progress" class="progress-bar" style="width: 0%"></div>
+		</div>
+
+		<table id="my-files" class="table table-sm mt-3 d-none">
+			<thead>
+				<tr><th>File</th><th class="text-end">Size</th><th class="text-end">Received</th><th class="text-end">Packets</th><th>Status</th><th></th></tr>
+			</thead>
+			<tbody>
+			</tbody>
+		</table>
+
+		<div class="d-flex gap-2 mt-2">
+			<button id="my-save-all" class="btn btn-success d-none" type="button">Save all files</button>
+			<button id="my-save-syx" class="btn btn-outline-secondary d-none" type="button">Save the raw capture (.syx)</button>
+		</div>
+
+		<h2 class="h5 mt-3">Log:</h2>
+		<div id="my-log" class="border rounded bg-body-tertiary p-2"></div>
+	</main>
+
+	<!-- Confirm modal -->
+	<div id="my-confirm-modal" class="modal fade" tabindex="-1" role="dialog">
+		<div class="modal-dialog">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h2 id="my-confirm-title" class="modal-title h5"></h2>
+					<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+				</div>
+				<div class="modal-body"><p id="my-confirm-text" class="mb-0"></p></div>
+				<div class="modal-footer">
+					<button id="my-confirm-cancel" type="button" class="btn btn-secondary" data-bs-dismiss="modal"></button>
+					<button id="my-confirm-ok" type="button" class="btn btn-danger"></button>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- Error modal -->
+	<div id="my-error-modal" class="modal fade" tabindex="-1" role="dialog">
+		<div class="modal-dialog">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h2 class="modal-title h5">Error</h2>
+					<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+				</div>
+				<div class="modal-body"><p id="my-error-text" class="mb-0"></p></div>
+			</div>
+		</div>
+	</div>
+
+	<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+	<script type="module">
+		import {FileDumpReceiver} from './lib/file_dump.js';
+		import {formatDuration, toHexBytes} from './lib/format.js';
+		import {DEVICE_IDS, pingMessage, parsePingReplyData, parsePingReplyDevice, rewriteDeviceId, toSystemInfoText, evaluateSystemInfo} from './lib/identify.js';
+		import {loadCapture, calcTransferMs} from './lib/sysex.js';
+		import {convertToRomImage, looksLikeWaveRom} from './lib/wave_scramble.js';
+
+		const NOT_SUPPORTED_ON_BROWSER = {
+			'cm-300': 'its ROM is surface-mounted',
+			'pma-5': 'its ROM is surface-mounted',
+		};
+
+		const SYX_DIR = './syx/';
+
+		const SEND_GAP_MS = 250;
+		const PING_GAP_MS = 60;
+		const SETTLE_MS = 250;
+		const IDLE_TIMEOUT_MS = 20000;
+		const ARMED_TIMEOUT_MS = 2000;
+
+		const elemMidiInDevices    = document.getElementById('my-midi-in-devices');
+		const elemMidiOutDevices   = document.getElementById('my-midi-out-devices');
+		const elemDetect           = document.getElementById('my-detect');
+		const elemConnectionStatus = document.getElementById('my-connection-status');
+		const elemFound            = document.getElementById('my-found');
+		const elemModels           = document.getElementById('my-models');
+		const elemVerdict          = document.getElementById('my-verdict');
+		const elemStart            = document.getElementById('my-start');
+		const elemStop             = document.getElementById('my-stop');
+		const elemRunning          = document.getElementById('my-running');
+		const elemFiles            = document.getElementById('my-files');
+		const elemRows             = elemFiles.querySelector('tbody');
+		const elemSaveAll          = document.getElementById('my-save-all');
+		const elemSaveSyx          = document.getElementById('my-save-syx');
+		const modalError   = new bootstrap.Modal('#my-error-modal');
+		const modalConfirm = new bootstrap.Modal('#my-confirm-modal');
+
+		let midiAccess = null;
+		let currentIn = null;
+		let currentOut = null;
+		let models = {};
+		let deviceId = null;
+		let activeTask = null;	// 'detect' | 'dump' | null
+		let capturedBytes = [];
+		let receiver = new FileDumpReceiver();
+		let expected = null;
+		let lastPacketAt = 0;
+		let detectedReply = null; 
+		let concern = null;
+		let pendingPingResolver = null;
+		const pings = [];
+
+		// --------------------------------
+		// helpers
+		// --------------------------------
+		function logLine(text) {
+			const elemLog = document.getElementById('my-log');
+			elemLog.append(`${new Date().toTimeString().slice(0, 8)}  ${text}\n`);
+			elemLog.scrollTop = elemLog.scrollHeight;
+		}
+
+		function showError(message) {
+			document.getElementById('my-error-text').textContent = message;
+			modalError.show();
+			logLine(`error: ${message}`);
+		}
+
+		const sleepMs = (ms) => new Promise((resolve) => {
+			setTimeout(resolve, ms);
+		});
+
+		// Resolves true only if the user picks the confirming button.
+		function confirmAction({title, body, ok, cancel, okClass = 'btn-danger'}) {
+			document.getElementById('my-confirm-title').textContent = title;
+			document.getElementById('my-confirm-text').textContent = body;
+			document.getElementById('my-confirm-cancel').textContent = cancel;
+
+			const elemConfirmOk = document.getElementById('my-confirm-ok');
+			elemConfirmOk.textContent = ok;
+			elemConfirmOk.className = `btn ${okClass}`;
+
+			return new Promise((resolve) => {
+				let isConfirmed = false;
+				const handleOkClick = () => {
+					isConfirmed = true; modalConfirm.hide();
+				};
+				elemConfirmOk.addEventListener('click', handleOkClick);
+				document.getElementById('my-confirm-modal').addEventListener(
+					'hidden.bs.modal',
+					() => {
+						elemConfirmOk.removeEventListener('click', handleOkClick); resolve(isConfirmed);
+					},
+					{once: true},
+				);
+				modalConfirm.show();
+			});
+		}
+
+		function downloadFile(name, bytes) {
+			const url = URL.createObjectURL(new Blob([bytes], {type: 'application/octet-stream'}));
+			const elemA = document.createElement('a');
+			elemA.href = url;
+			elemA.download = name;
+			document.body.appendChild(elemA);
+			elemA.click();
+			elemA.remove();
+			setTimeout(() => URL.revokeObjectURL(url), 10000);
+		}
+
+		// One of the prepared files in syx/, parsed into the messages it holds.
+		async function fetchMessages(name) {
+			const response = await fetch(SYX_DIR + name);
+			return loadCapture(new Uint8Array(await response.arrayBuffer()));
+		}
+
+		function buildRomFigure(model) {
+			const SLOT_BYTES = 2 * 1024 * 1024;   // one wave ROM chip select, see src/catalogue.json
+
+			function formatSize(size) {
+				return (size >= 1024 * 1024) ? `${Math.round(size / (1024 * 1024))} MiB` : `${Math.round(size / 1024)} KiB`;
+			}
+
+			// A model's wave files, bucketed into the 2 MiB slots they answer in.
+			function calcSlots() {
+				const waves = model.files.filter((file) => (file.source === 'wave'));
+				const top = Math.max(...waves.map((file) => Math.ceil((file.start + file.size) / SLOT_BYTES)));
+				const filledSlots = Array.from({length: top}, () => 0);
+				for (const wave of waves) {
+					filledSlots[Math.floor(wave.start / SLOT_BYTES)] += wave.size;
+				}
+				return filledSlots;
+			}
+
+			const isMcu = model.files.find((file) => (file.source === 'mcu'));
+			const slots = calcSlots();
+			const sizeTexts = [];
+
+			const mcuText = (isMcu) ? formatSize(isMcu.size) : '';
+			if (mcuText) {
+				sizeTexts.push(mcuText);
+			}
+			const square = (isMcu)
+				? `<span class="my-rf-mcu me-2" title="MCU ROM, ${mcuText}"><i>${mcuText}</i></span>`
+				: '<span class="my-rf-mcu my-rf-none me-2" title="no internal MCU ROM"></span>';
+
+			const boxes = Array.from({length: 3}, (_, i) => {
+				const size = slots[i] ?? 0;
+				if (!size) {
+					return '<span class="my-rf-slot" title="2 MiB slot, nothing there"></span>';
+				}
+				const sizeText = formatSize(size);
+				sizeTexts.push(sizeText);
+				const addr = (i * SLOT_BYTES).toString(16).toUpperCase().padStart(6, '0');
+				return `<span class="my-rf-slot" title="Wave ROM, ${sizeText} at ${addr}"><i style="width: ${Math.round((size / SLOT_BYTES) * 100)}%;">${sizeText}</i></span>`;
+			}).join('');
+
+			return `<span class="my-romfig" role="img" aria-label="${sizeTexts.join(', ')}">${square}<span class="my-rf-gap"></span>${boxes}</span>`;
+		}
+
+		function getCurrentModel() {
+			const checkedInput = document.querySelector('input[name=model]:checked');
+			const key = (checkedInput) ? checkedInput.value : Object.keys(models)[0];
+			return models[key];
+		}
+
+		// --------------------------------
+		// what answered
+		// --------------------------------
+		function renderVerdict() {
+			for (const element of elemModels.querySelectorAll('[data-badge]')) {
+				element.classList.add('d-none');
+			}
+			elemVerdict.className = 'd-none';
+			elemVerdict.replaceChildren();
+			concern = null;
+			if (!detectedReply) {
+				return;
+			}
+
+			const chosen = getCurrentModel();
+			const v = evaluateSystemInfo(detectedReply, {
+				models, notOffered: NOT_SUPPORTED_ON_BROWSER, selected: chosen?.key,
+			});
+			// One block can name two models that share a layout - the SC-55 and the SC-155 do - so this is a list.
+			const named = (v.labels) ? v.labels.join(' or ') : null;
+
+			if (v.kind === 'match' || v.kind === 'mismatch') {
+				for (const key of v.keys) {
+					elemModels.querySelector(`[data-badge="${key}"]`)?.classList.remove('d-none');
+				}
+				if (v.kind === 'mismatch') {
+					concern = `The synth identified itself as ${named}, but the dump is set to ${chosen.label}. ` +
+						`These two use different wave ROM layouts (${v.config} vs. ${chosen.config}). If you continue, ` +
+						'you would get the wrong ROM data.';
+				}
+			} else if (v.kind === 'elsewhere') {
+				if (chosen && chosen.config !== v.config) {
+					concern = `The synth identified itself as ${named} (layout: ${v.config}). ` +
+						`But the dump is set to ${chosen.label} (layout: ${chosen.config}) instead.`;
+				}
+			} else {
+				concern = "The synth's reply does not match any known model. This tool only supports the SC-55 and its " +
+					'close relatives - nothing else. If you are not sure what this synth is, do not continue: ' +
+					'every layout here would give you the wrong data.';
+			}
+
+			elemVerdict.className = 'form-text mt-1';
+			const info = v.text || 'not text - the log has the 32 bytes';
+			elemVerdict.appendChild(buildRow('System information', info, (v.text) ? 'code' : 'span'));
+			if (named) {
+				elemVerdict.appendChild(buildRow('Identified as', named, 'strong'));
+			}
+		}
+
+		function buildRow(label, value, tag = 'span') {
+			const name = document.createElement('span');
+			name.className = 'text-body-secondary';
+			name.textContent = `${label}: `;
+			const valueElement = document.createElement(tag);
+			valueElement.textContent = value;
+			const div = document.createElement('div');
+			div.append(name, valueElement);
+
+			return div;
+		}
+
+		// --------------------------------
+		// Web MIDI
+		// --------------------------------
+		function updateMidiDevices() {
+			const getSelectedId = (elem) => elem.options[elem.selectedIndex]?.id;
+			const wasIn = getSelectedId(elemMidiInDevices);
+			const wasOut = getSelectedId(elemMidiOutDevices);
+			elemMidiInDevices.innerHTML = '<option>Disconnected</option>';
+			for (const input of [...midiAccess.inputs.values()]) {
+				elemMidiInDevices.insertAdjacentHTML('beforeend', `<option id="${input.id}">${input.name}</option>`);
+			}
+			elemMidiOutDevices.innerHTML = '<option>Disconnected</option>';
+			for (const output of [...midiAccess.outputs.values()]) {
+				elemMidiOutDevices.insertAdjacentHTML('beforeend', `<option id="${output.id}">${output.name}</option>`);
+			}
+			for (const [elem, id] of [[elemMidiInDevices, wasIn], [elemMidiOutDevices, wasOut]]) {
+				for (const option of elem.options) {
+					if (option.id && option.id === id) {
+						option.selected = true;
+					}
+				}
+			}
+			updateButtons();
+		}
+
+		elemMidiInDevices.addEventListener('change', (event) => {
+			if (currentIn) {
+				currentIn.onmidimessage = null;
+			}
+			currentIn = null;
+			const id = event.target.options[event.target.selectedIndex].id;
+			for (const input of [...midiAccess.inputs.values()]) {
+				if (input.id === id) {
+					currentIn = input;
+					currentIn.onmidimessage = handleMidiMessage;
+				}
+			}
+			resetDetection();
+		});
+
+		elemMidiOutDevices.addEventListener('change', (event) => {
+			currentOut = null;
+			const id = event.target.options[event.target.selectedIndex].id;
+			for (const output of [...midiAccess.outputs.values()]) {
+				if (output.id === id) {
+					currentOut = output;
+				}
+			}
+			resetDetection();
+		});
+
+		function resetDetection() {
+			deviceId = null;
+			detectedReply = null;
+			renderVerdict();
+			elemFound.textContent = '';
+			elemFound.className = 'form-text';
+			elemConnectionStatus.classList.add('d-none');
+			updateButtons();
+		}
+
+		function updateButtons() {
+			const hasBothPorts = (Boolean(currentIn) && Boolean(currentOut));
+			elemDetect.disabled = Boolean(activeTask) || !hasBothPorts;
+			elemStart.disabled = Boolean(activeTask) || !hasBothPorts || deviceId === null;
+
+			elemMidiInDevices.disabled = Boolean(activeTask);
+			elemMidiOutDevices.disabled = Boolean(activeTask);
+		}
+
+		// --------------------------------
+		// receiving
+		// --------------------------------
+		function handleMidiMessage(event) {
+			const bytes = event.data;
+			// A reply to the confirmation request below, which can arrive at any time, not only while the connection check is
+			// running.
+			if (pendingPingResolver && parsePingReplyDevice(bytes) !== null) {
+				pendingPingResolver();
+				return;
+			}
+			if (activeTask === 'detect') {
+				const replyDeviceId = parsePingReplyDevice(bytes);
+				if (replyDeviceId !== null) {
+					const block = parsePingReplyData(bytes);
+					pings.push({device: replyDeviceId, text: toSystemInfoText(block), data: block});
+				}
+				return;
+			}
+			if (activeTask !== 'dump') {
+				return;
+			}
+			// Drop system real time bytes (H'F8 and up) from the capture: a .syx file is expected to hold SysEx and nothing else,
+			// and these carry no data. Anything else unexpected is kept - that is worth seeing when a dump goes wrong.
+			let hasData = false;
+			for (const byte of bytes) {
+				if (byte < 0xf8) {
+					capturedBytes.push(byte);
+					hasData = true;
+				}
+			}
+			receiver.feed(bytes);
+			if (hasData) {
+				lastPacketAt = performance.now();
+			}
+			scheduleRender();
+		}
+
+		async function reportNoDumperResponse() {
+			async function isStillConnected() {
+				if (!currentOut || deviceId === null) {
+					return false;
+				}
+
+				let hasReplied = false;
+				const replied = new Promise((resolve) => {
+					pendingPingResolver = () => {
+						hasReplied = true;
+						resolve();
+					};
+				});
+				currentOut.send(pingMessage(deviceId));
+				await Promise.race([replied, sleepMs(800)]);
+				pendingPingResolver = null;
+
+				return hasReplied;
+			}
+
+			const isAlive = await isStillConnected();
+			finishDump('nothing arrived - the dumper did not run');
+			if (isAlive) {
+				showError('The dumper did not run, but the synth still answers - so MIDI In, MIDI Out, ' +
+					'and the device ID are fine. The problem is on the synth itself.\n\n' +
+					'Check:\n' +
+					'- the ROM is patched (an unpatched ROM ignores the trigger)\n' +
+					'- nothing reset the synth after the dumper was loaded (a GS reset or power cycle erases it)\n\n' +
+					'Then try again.');
+			} else {
+				showError('The dumper did not run, and the synth has stopped answering.\n\n' +
+					'Check:\n' +
+					'- it is switched on\n' +
+					'- the MIDI cables are properly connected\n\n' +
+					'Then run the connection check again.');
+			}
+		}
+
+		// --------------------------------
+		// the table
+		// --------------------------------
+		const rows = new Map();
+
+		const RENDER_GAP_MS = 100;
+		let isRenderPending = false;
+
+		function scheduleRender() {
+			if (isRenderPending) {
+				return;
+			}
+			isRenderPending = true;
+			setTimeout(() => {
+				isRenderPending = false;
+				renderFiles();
+			}, RENDER_GAP_MS);
+		}
+
+		const setText = (elem, text) => {
+			if (elem.textContent !== text) {
+				elem.textContent = text;
+			}
+		};
+		const setClass = (elem, name) => {
+			if (elem.className !== name) {
+				elem.className = name;
+			}
+		};
+		const setHidden = (elem, isHidden) => {
+			if (elem.hidden !== isHidden) {
+				elem.hidden = isHidden;
+			}
+		};
+
+		function renderFiles() {
+			const files = receiver.getProperties();
+			elemFiles.classList.toggle('d-none', files.length === 0);
+
+			let receivedBytes = 0;
+			let completeCount = 0;
+			for (const [i, file] of files.entries()) {
+				const row = getRowFor(i);
+				receivedBytes += file.received;
+				if (file.isComplete) {
+					completeCount++;
+				}
+
+				setText(row.cells[0], file.name);
+				setText(row.cells[1], String(file.size));
+				setText(row.cells[2], String(file.received));
+				setText(row.cells[3], String(file.packets));
+				setText(row.cells[4], (file.errors.length) ? `${file.errors.length} error(s)`
+					: (file.isComplete) ? 'complete' : (activeTask) ? 'receiving...' : 'incomplete');
+				setClass(row.cells[4], (file.errors.length) ? 'text-danger'
+					: (file.isComplete) ? 'text-success' : (activeTask) ? '' : 'text-warning-emphasis');
+
+				const isSaveOffered = (file.isComplete || (!activeTask && file.received > 0));
+				setHidden(row.button, !isSaveOffered);
+				setText(row.button, (file.isComplete) ? 'Save' : 'Save partial');
+				setClass(row.button, `btn btn-sm py-0 btn-outline-${(file.isComplete) ? 'primary' : 'secondary'}`);
+			}
+			for (const [i, row] of rows) {
+				if (i >= files.length) {
+					row.tr.remove();
+					rows.delete(i);
+				}
+			}
+
+			if (expected) {
+				const elemProgress = document.getElementById('my-progress');
+				const total = expected.files.reduce((p, file) => p + file.size, 0);
+				const pct = Math.min(100, Math.round(100 * receivedBytes / total));
+				elemProgress.style.width = `${pct}%`;
+				elemProgress.textContent = `${pct}%`;
+			}
+			elemSaveAll.classList.toggle('d-none', completeCount === 0);
+			// The raw capture stays on offer mid-run: it is the thing to look at when a dump is going wrong,
+			// and its name promises nothing about completeness.
+			elemSaveSyx.classList.toggle('d-none', capturedBytes.length === 0);
+		}
+
+		function getRowFor(index) {
+			const found = rows.get(index);
+			if (found) {
+				return found;
+			}
+
+			const tr = document.createElement('tr');
+			tr.innerHTML = '<td></td><td class="text-end"></td><td class="text-end"></td>' +
+				'<td class="text-end"></td><td></td><td class="text-end"></td>';
+			const button = document.createElement('button');
+			button.type = 'button';
+			button.hidden = true;
+			tr.lastElementChild.appendChild(button);
+			// bound once; it asks the receiver for the file only when actually clicked, so no row ever holds on to a megabyte of
+			// stale data
+			button.addEventListener('click', () => {
+				const file = receiver.getFile(index);
+				if (file) {
+					saveFile(file);
+				}
+			});
+			const row = {tr, cells: [...tr.children], button};
+			rows.set(index, row);
+			elemRows.appendChild(tr);
+
+			return row;
+		}
+
+		function saveFile(file) {
+			function saveName(isPartial) {
+				const stem = file.name.toLowerCase().replace(/\.bin$/u, '');
+				return `${(expected) ? `${expected.key}_` : ''}${stem}${(isPartial) ? '_partial' : ''}.bin`;
+			}
+
+			function prepareForSave() {
+				const entry = expected?.files.find((e) => (e.name === file.name));
+				if (entry?.source !== 'wave') {
+					return {bytes: file.bytes, note: ''};
+				}
+				if (!file.isComplete) {
+					return {bytes: file.bytes, note: ' (left as captured - a partial dump cannot be made into an image)'};
+				}
+				const image = convertToRomImage(file.bytes);
+				return {
+					bytes: image,
+					note: (looksLikeWaveRom(image))
+						? ' (as a ROM image)'
+						: ' (as a ROM image, but the header looks wrong - please also keep the raw capture)',
+				};
+			}
+
+			const isPartial = (!file.isComplete);
+			const {bytes, note} = prepareForSave();
+			const name = saveName(isPartial);
+			downloadFile(name, bytes);
+			logLine(`saved ${name}, ${bytes.length} bytes${(isPartial) ? ` of ${file.size} - incomplete` : ''}${note}`);
+		}
+
+		// --------------------------------
+		// the run
+		// --------------------------------
+		// Send the same request to every device id and see which one answers.
+		async function detectConnection() {
+			activeTask = 'detect';
+			updateButtons();
+			pings.length = 0;
+			elemFound.textContent = 'searching...';
+			elemFound.className = 'form-text';
+			elemConnectionStatus.classList.add('d-none');
+			logLine('looking for the synth on device ids 17 to 32');
+			try {
+				for (const id of DEVICE_IDS) {
+					currentOut.send(pingMessage(id));
+					await sleepMs(PING_GAP_MS);
+				}
+				await sleepMs(400);
+			} finally {
+				activeTask = null;
+			}
+
+			if (pings.length === 0) {
+				deviceId = null;
+				detectedReply = null;
+				renderVerdict();
+				elemFound.replaceChildren();
+				const intro = document.createElement('div');
+				intro.textContent = 'No reply. Check:';
+				const list = document.createElement('ul');
+				list.className = 'mb-0 ps-3';
+				for (const item of ['the MIDI cables and ports', '"Rx SysEx" is turned on']) {
+					const li = document.createElement('li');
+					li.textContent = item;
+					list.append(li);
+				}
+				elemFound.append(intro, list);
+				elemFound.className = 'form-text text-danger';
+				logLine('no reply from any device id');
+			} else {
+				deviceId = pings[0].device;
+				const info = (pings[0].text) ? ` - ${pings[0].text}` : '';
+				elemFound.replaceChildren(buildRow('Device ID', deviceId - 0x10 + 17));
+				elemFound.className = 'form-text';
+				elemConnectionStatus.classList.remove('d-none');
+				logLine(`replied on device id ${deviceId - 0x10 + 17}${info}`);
+				// The 32 bytes verbatim as well: this block is not documented, so a reply that is not text is still worth seeing.
+				// A reply of any other size is not the block at all, and saying so beats leaving "not recognised" unexplained.
+				const size = (pings[0].data.length === 32) ? ''
+					: ` (${pings[0].data.length} bytes, not the 32 this block is)`;
+				logLine(`  system information (40 30 00): ${toHexBytes(pings[0].data)}${size}`);
+				detectedReply = pings[0].data;
+				renderVerdict();
+				if (pings.length > 1) {
+					logLine(`note: ${pings.length} devices answered - using the first one.`);
+				}
+			}
+			updateButtons();
+		}
+
+		async function startDump() {
+			expected = getCurrentModel();
+			activeTask = 'dump';
+			receiver = new FileDumpReceiver();
+			capturedBytes = [];
+			updateButtons();
+			elemRunning.classList.remove('d-none');
+			elemStop.classList.remove('d-none');
+			elemSaveAll.classList.add('d-none');
+			renderFiles();
+
+			try {
+				const names = [...expected.loader, expected.table, expected.trigger];
+				logLine(`GS reset, then the dumper (${names.slice(1, -1).join(' + ')})`);
+				const [...parts] = await Promise.all(names.map(fetchMessages));
+				const trigger = parts.pop();
+
+				if (!await sendMessages(parts.flat(), deviceId)) {
+					finishDump('stopped');
+					return;
+				}
+				logLine(`${parts.flat().length} messages sent. ` +
+					`${expected.files.length} files to come (${formatDuration(expected.seconds)}).`);
+				await sleepMs(SETTLE_MS);
+				if (!activeTask) {
+					finishDump('stopped');
+					return;
+				}
+
+				lastPacketAt = performance.now();
+				if (!await sendMessages(trigger, deviceId)) {
+					finishDump('stopped');
+					return;
+				}
+				logLine('triggered - waiting for the dump');
+
+				while (activeTask) {
+					await sleepMs(250);
+					const files = receiver.getProperties();
+					if (files.length >= expected.files.length && files.every((file) => file.isComplete)) {
+						finishDump('done');
+						return;
+					}
+					const quiet = performance.now() - lastPacketAt;
+					// Not one byte since the trigger: the dumper never started.
+					if (!capturedBytes.length && quiet > ARMED_TIMEOUT_MS) {
+						await reportNoDumperResponse();
+						return;
+					}
+					if (quiet > IDLE_TIMEOUT_MS) {
+						finishDump('nothing more arrived - the dump stopped early');
+					}
+				}
+			} catch (e) {
+				showError(e.message);
+				finishDump('failed');
+			}
+		}
+
+		function finishDump(why) {
+			activeTask = null;
+			elemRunning.classList.add('d-none');
+			elemStop.classList.add('d-none');
+			updateButtons();
+			renderFiles();
+			const files = receiver.getProperties();
+			const count = (expected) ? `${files.length} of ${expected.files.length}` : String(files.length);
+			logLine(`${why}: ${count} file(s), ${files.reduce((p, file) => p + file.received, 0)} bytes`);
+			for (const file of files) {
+				for (const error of file.errors.slice(0, 3)) {
+					logLine(`  ${file.name}: ${error}`);
+				}
+			}
+			for (const error of receiver.errors.slice(0, 3)) {
+				logLine(`  ${error}`);
+			}
+		}
+
+		async function sendMessages(messages, device) {
+			for (const message of messages) {
+				currentOut.send(rewriteDeviceId(message, device));
+				await sleepMs(calcTransferMs(message.length) + SEND_GAP_MS);
+				if (!activeTask) {
+					return false;
+				}
+			}
+			return true;
+		}
+
+		elemDetect.addEventListener('click', detectConnection);
+
+		elemStart.addEventListener('click', async () => {
+			if (concern && !await confirmAction({
+				title: 'Dump anyway?',
+				body: `${concern} This dump takes about ${formatDuration(getCurrentModel().seconds)} ` +
+					'and cannot be paused or resumed once started.',
+				ok: 'Dump anyway', cancel: 'Go back',
+			})) {
+				return;
+			}
+			await startDump();
+		});
+
+		elemStop.addEventListener('click', async () => {
+			if (activeTask !== 'dump') {
+				return;
+			}
+			const files = receiver.getProperties();
+			const completeCount = files.filter((file) => file.isComplete).length;
+			const isConfirmed = await confirmAction({
+				title: 'Stop the dump?',
+				body: `${completeCount} of ${expected.files.length} files are done. If you stop now, ` +
+					'anything still arriving will be lost. There is no way to resume - you would need to start the whole dump ' +
+					`again (about ${formatDuration(expected.seconds)}).`,
+				ok: 'Stop the dump', cancel: 'Keep going',
+			});
+			if (isConfirmed && activeTask === 'dump') {
+				finishDump('stopped');
+			}
+		});
+
+		window.addEventListener('beforeunload', (event) => {
+			if (activeTask !== 'dump') {
+				return;
+			}
+			event.preventDefault();
+			event.returnValue = '';       // some browsers still want this set
+		});
+
+		elemSaveAll.addEventListener('click', () => {
+			const files = receiver.getProperties();
+			let saved = 0;
+			for (const [i, file] of files.entries()) {
+				if (!file.isComplete) {
+					continue;
+				}
+				saveFile(receiver.getFile(i));
+				saved++;
+			}
+			for (const file of files) {
+				if (file.isComplete) {
+					continue;
+				}
+				logLine(`skipped ${file.name}: ${file.received} of ${file.size} bytes${(activeTask)
+					? ' - still receiving' : ' - use "Save partial" on its own row'}`);
+			}
+			if (!saved) {
+				logLine('nothing saved - no file has finished yet');
+			}
+		});
+
+		elemSaveSyx.addEventListener('click', () => {
+			downloadFile(`${(expected) ? `${expected.key}_` : ''}capture.syx`, Uint8Array.from(capturedBytes));
+		});
+
+		// --------------------------------
+		// start-up
+		// --------------------------------
+		(async () => {
+			try {
+				const manifest = await (await fetch(`${SYX_DIR}models.json`)).json();
+				// A synth picks a wave ROM layout; several share one. Flatten the two into what the rest of this file wants.
+				models = Object.fromEntries(Object.entries(manifest.models).
+					filter(([, m]) => manifest.configs[m.config]).
+					map(([key, m]) => [key, {...manifest.configs[m.config], ...m, key}]));
+			} catch {
+				showError(`Could not read ${SYX_DIR}models.json. Run "make" to build the prepared SysEx files.`);
+				return;
+			}
+			const keys = Object.keys(models);
+			if (keys.length === 0) {
+				showError('models.json does not list any synth with a built layout.');
+				return;
+			}
+			let isFirstModel = true;
+			for (const [key, model] of Object.entries(models)) {
+				if (NOT_SUPPORTED_ON_BROWSER[key]) {
+					continue;
+				}
+				const caution = (model.isConfirmed) ? '' : ' <span class="small text-warning-emphasis">(not checked on hardware)</span>';
+				elemModels.insertAdjacentHTML('beforeend', `
+					<div class="form-check">
+						<label class="form-check-label d-block">
+							<input class="form-check-input" type="radio" name="model" value="${key}"${(isFirstModel) ? ' checked' : ''}>${model.label}
+							<span class="badge text-bg-success ms-1 d-none" data-badge="${key}">matches your synth</span>${caution}
+							<span class="d-flex flex-wrap align-items-center gap-2 small text-body-secondary">
+								${buildRomFigure(model)}
+								<span class="text-nowrap ms-auto"><span class="visually-hidden">, </span>${formatDuration(model.seconds)}</span>
+							</span>
+						</label>
+					</div>`);
+				isFirstModel = false;
+			}
+
+			elemModels.addEventListener('change', renderVerdict);
+
+			if (!navigator.requestMIDIAccess) {
+				showError('This browser does not support Web MIDI.\n\n' +
+					'Use Chrome, Edge, or Firefox, over HTTPS or from localhost. Safari does not support Web MIDI at all.');
+				return;
+			}
+			try {
+				midiAccess = await navigator.requestMIDIAccess({sysex: true});
+			} catch (e) {
+				showError(`Web MIDI access was refused: ${e.message}\n\n` +
+					'If you use Chrome or Edge: reload the page and allow MIDI access in the popup.\n\n' +
+					'If you use Firefox: reload the page and accept the add-on it offers, or check that the add-on ' +
+					'already installed for this address has permission.');
+				return;
+			}
+			midiAccess.addEventListener('statechange', updateMidiDevices);
+			updateMidiDevices();
+			logLine('ready - choose MIDI In and Out, then check the connection');
+		})();
+	</script>
+</body>
+</html>

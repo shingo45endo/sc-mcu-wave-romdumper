@@ -1,0 +1,420 @@
+{
+	"configs": {
+		"mcu-wave-1m": {
+			"note": "1 MiB, the first slot only",
+			"isConfirmed": true,
+			"table": "03-mcu-wave-1m.syx",
+			"trigger": "04-trigger.syx",
+			"files": [
+				{
+					"name": "MCU.BIN",
+					"size": 32768,
+					"source": "mcu",
+					"start": 0
+				},
+				{
+					"name": "WAVE_00.BIN",
+					"size": 1048576,
+					"source": "wave",
+					"start": 0
+				}
+			],
+			"seconds": 423
+		},
+		"mcu-wave-1m1m1m": {
+			"note": "1 MiB in each of the first three 2 MiB slots",
+			"isConfirmed": true,
+			"table": "03-mcu-wave-1m1m1m.syx",
+			"trigger": "04-trigger.syx",
+			"files": [
+				{
+					"name": "MCU.BIN",
+					"size": 32768,
+					"source": "mcu",
+					"start": 0
+				},
+				{
+					"name": "WAVE_00.BIN",
+					"size": 1048576,
+					"source": "wave",
+					"start": 0
+				},
+				{
+					"name": "WAVE_20.BIN",
+					"size": 1048576,
+					"source": "wave",
+					"start": 2097152
+				},
+				{
+					"name": "WAVE_40.BIN",
+					"size": 1048576,
+					"source": "wave",
+					"start": 4194304
+				}
+			],
+			"seconds": 1244
+		},
+		"mcu-wave-2m": {
+			"note": "2 MiB, the first slot only",
+			"isConfirmed": true,
+			"table": "03-mcu-wave-2m.syx",
+			"trigger": "04-trigger.syx",
+			"files": [
+				{
+					"name": "MCU.BIN",
+					"size": 32768,
+					"source": "mcu",
+					"start": 0
+				},
+				{
+					"name": "WAVE_00.BIN",
+					"size": 2097152,
+					"source": "wave",
+					"start": 0
+				}
+			],
+			"seconds": 834
+		},
+		"mcu-wave-2m1m": {
+			"note": "2 MiB in the first slot, 1 MiB in the second",
+			"isConfirmed": true,
+			"table": "03-mcu-wave-2m1m.syx",
+			"trigger": "04-trigger.syx",
+			"files": [
+				{
+					"name": "MCU.BIN",
+					"size": 32768,
+					"source": "mcu",
+					"start": 0
+				},
+				{
+					"name": "WAVE_00.BIN",
+					"size": 2097152,
+					"source": "wave",
+					"start": 0
+				},
+				{
+					"name": "WAVE_20.BIN",
+					"size": 1048576,
+					"source": "wave",
+					"start": 2097152
+				}
+			],
+			"seconds": 1244
+		},
+		"probe": {
+			"note": "",
+			"isConfirmed": false,
+			"table": "03-probe.syx",
+			"trigger": "04-trigger.syx",
+			"files": [
+				{
+					"name": "MCU.BIN",
+					"size": 32768,
+					"source": "mcu",
+					"start": 0
+				},
+				{
+					"name": "HEADER.BIN",
+					"size": 112,
+					"source": "wave",
+					"start": 0
+				},
+				{
+					"name": "W000000.BIN",
+					"size": 112,
+					"source": "wave",
+					"start": 4096
+				},
+				{
+					"name": "W080000.BIN",
+					"size": 112,
+					"source": "wave",
+					"start": 528384
+				},
+				{
+					"name": "W100000.BIN",
+					"size": 112,
+					"source": "wave",
+					"start": 1052672
+				},
+				{
+					"name": "W180000.BIN",
+					"size": 112,
+					"source": "wave",
+					"start": 1576960
+				},
+				{
+					"name": "W200000.BIN",
+					"size": 112,
+					"source": "wave",
+					"start": 2101248
+				},
+				{
+					"name": "W280000.BIN",
+					"size": 112,
+					"source": "wave",
+					"start": 2625536
+				},
+				{
+					"name": "W300000.BIN",
+					"size": 112,
+					"source": "wave",
+					"start": 3149824
+				},
+				{
+					"name": "W380000.BIN",
+					"size": 112,
+					"source": "wave",
+					"start": 3674112
+				},
+				{
+					"name": "W400000.BIN",
+					"size": 112,
+					"source": "wave",
+					"start": 4198400
+				},
+				{
+					"name": "W480000.BIN",
+					"size": 112,
+					"source": "wave",
+					"start": 4722688
+				},
+				{
+					"name": "W500000.BIN",
+					"size": 112,
+					"source": "wave",
+					"start": 5246976
+				},
+				{
+					"name": "W580000.BIN",
+					"size": 112,
+					"source": "wave",
+					"start": 5771264
+				},
+				{
+					"name": "W600000.BIN",
+					"size": 112,
+					"source": "wave",
+					"start": 6295552
+				},
+				{
+					"name": "W680000.BIN",
+					"size": 112,
+					"source": "wave",
+					"start": 6819840
+				},
+				{
+					"name": "W700000.BIN",
+					"size": 112,
+					"source": "wave",
+					"start": 7344128
+				},
+				{
+					"name": "W780000.BIN",
+					"size": 112,
+					"source": "wave",
+					"start": 7868416
+				}
+			],
+			"seconds": 14
+		},
+		"wave-1m": {
+			"note": "1 MiB, the first slot only, and no MCU internal ROM",
+			"isConfirmed": false,
+			"table": "03-wave-1m.syx",
+			"trigger": "04-trigger.syx",
+			"files": [
+				{
+					"name": "WAVE_00.BIN",
+					"size": 1048576,
+					"source": "wave",
+					"start": 0
+				}
+			],
+			"seconds": 410
+		},
+		"wave-2m": {
+			"note": "2 MiB, the first slot only, and no MCU internal ROM",
+			"isConfirmed": false,
+			"table": "03-wave-2m.syx",
+			"trigger": "04-trigger.syx",
+			"files": [
+				{
+					"name": "WAVE_00.BIN",
+					"size": 2097152,
+					"source": "wave",
+					"start": 0
+				}
+			],
+			"seconds": 821
+		},
+		"wave-2m2m": {
+			"note": "2 MiB in each of the first two slots, and no MCU internal ROM",
+			"isConfirmed": false,
+			"table": "03-wave-2m2m.syx",
+			"trigger": "04-trigger.syx",
+			"files": [
+				{
+					"name": "WAVE_00.BIN",
+					"size": 2097152,
+					"source": "wave",
+					"start": 0
+				},
+				{
+					"name": "WAVE_20.BIN",
+					"size": 2097152,
+					"source": "wave",
+					"start": 2097152
+				}
+			],
+			"seconds": 1642
+		}
+	},
+	"models": {
+		"sc-55": {
+			"label": "Roland SC-55",
+			"config": "mcu-wave-1m1m1m",
+			"dumper": "maincpu",
+			"loader": [
+				"00-gsreset.syx",
+				"01-body.syx",
+				"02-tx-maincpu.syx"
+			],
+			"dump": "dump-mcu-wave-1m1m1m-maincpu.syx",
+			"systemInfo": [
+				"GS           VER=1.11           ",
+				"GS           VER=1.12           ",
+				"GS           VER=1.13           "
+			]
+		},
+		"sc-155": {
+			"label": "Roland SC-155",
+			"config": "mcu-wave-1m1m1m",
+			"dumper": "maincpu",
+			"loader": [
+				"00-gsreset.syx",
+				"01-body.syx",
+				"02-tx-maincpu.syx"
+			],
+			"dump": "dump-mcu-wave-1m1m1m-maincpu.syx",
+			"systemInfo": [
+				"GS           VER=1.13           "
+			]
+		},
+		"sc-55mk2": {
+			"label": "Roland SC-55mkII, SC-55ST",
+			"config": "mcu-wave-2m1m",
+			"dumper": "subcpu",
+			"loader": [
+				"00-gsreset.syx",
+				"01-body.syx",
+				"02-tx-subcpu.syx"
+			],
+			"dump": "dump-mcu-wave-2m1m-subcpu.syx",
+			"systemInfo": [
+				"GS-28 VER=2.00  SC              "
+			]
+		},
+		"sc-33": {
+			"label": "Roland SC-33",
+			"config": "mcu-wave-2m",
+			"dumper": "maincpu",
+			"loader": [
+				"00-gsreset.syx",
+				"01-body.syx",
+				"02-tx-maincpu.syx"
+			],
+			"dump": "dump-mcu-wave-2m-maincpu.syx",
+			"systemInfo": [
+				"GS-28 VER=2.00  SC-33           "
+			]
+		},
+		"ds-330": {
+			"label": "Boss DS-330",
+			"config": "mcu-wave-2m",
+			"dumper": "maincpu",
+			"loader": [
+				"00-gsreset.syx",
+				"01-body.syx",
+				"02-tx-maincpu.syx"
+			],
+			"dump": "dump-mcu-wave-2m-maincpu.syx",
+			"systemInfo": [
+				"GS Standard  VER=1.20MA1.10     "
+			]
+		},
+		"sd-35": {
+			"label": "Roland SD-35",
+			"config": "mcu-wave-1m",
+			"dumper": "maincpu",
+			"loader": [
+				"00-gsreset.syx",
+				"01-body.syx",
+				"02-tx-maincpu.syx"
+			],
+			"dump": "dump-mcu-wave-1m-maincpu.syx",
+			"systemInfo": [
+				"GS-28 VER=2.00  SD              "
+			]
+		},
+		"ra-30": {
+			"label": "Roland RA-30",
+			"config": "wave-1m",
+			"dumper": "maincpu",
+			"loader": [
+				"00-gsreset.syx",
+				"01-body.syx",
+				"02-tx-maincpu.syx"
+			],
+			"dump": "dump-wave-1m-maincpu.syx",
+			"systemInfo": [
+				"GS Standard  VER=2.00           "
+			]
+		},
+		"xp-10": {
+			"label": "Roland XP-10",
+			"config": "wave-2m2m",
+			"dumper": "maincpu",
+			"loader": [
+				"00-gsreset.syx",
+				"01-body.syx",
+				"02-tx-maincpu.syx"
+			],
+			"dump": "dump-wave-2m2m-maincpu.syx",
+			"systemInfo": [
+				"GS-28 VER=2.00 JV-35/50         "
+			]
+		},
+		"cm-300": {
+			"label": "Roland CM-300, SCC-1",
+			"config": "mcu-wave-1m1m1m",
+			"dumper": "maincpu",
+			"loader": [
+				"00-gsreset.syx",
+				"01-body.syx",
+				"02-tx-maincpu.syx"
+			],
+			"dump": "dump-mcu-wave-1m1m1m-maincpu.syx",
+			"systemInfo": [
+				"GS Standard  VER=1.10           ",
+				"GS Standard  VER=1.20           ",
+				"GS Standard  VER=1.30           "
+			]
+		},
+		"pma-5": {
+			"label": "Roland PMA-5",
+			"config": "wave-2m",
+			"dumper": "maincpu",
+			"loader": [
+				"00-gsreset.syx",
+				"01-body.syx",
+				"02-tx-maincpu.syx"
+			],
+			"dump": "dump-wave-2m-maincpu.syx",
+			"systemInfo": [
+				"GS-28 VER=2.00  IW-GS           "
+			]
+		}
+	}
+}

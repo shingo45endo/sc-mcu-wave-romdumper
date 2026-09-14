@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en" class="h-100">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>sc-mcu-wave-romdumper - ROM patcher</title>
+	<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+	<style>
+		#my-droparea.my-dragover {
+			border-color: var(--bs-primary);
+			background-color: var(--bs-primary-bg-subtle);
+		}
+		#my-report {
+			font-size: .875rem;
+		}
+		#my-report th {
+			font-weight: normal;
+			color: var(--bs-secondary-color);
+			white-space: nowrap;
+		}
+		#my-report td {
+			font-family: var(--bs-font-monospace);
+			font-variant-numeric: tabular-nums;
+		}
+		#my-stub {
+			white-space: pre;
+			font-size: .8125rem;
+		}
+	</style>
+</head>
+<body class="h-100">
+	<!-- Navbar -->
+	<nav class="navbar navbar-light bg-light sticky-top">
+		<div class="container align-items-start">
+			<h1 class="h6"><a href="https://github.com/shingo45endo/sc-mcu-wave-romdumper" class="navbar-brand" target="_blank" rel="noopener noreferrer">sc-mcu-wave-romdumper</a></h1>
+			<ul class="nav nav-pills">
+				<li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">Patch ROM</a></li>
+				<li class="nav-item"><a class="nav-link" href="dump.html">Dump over MIDI</a></li>
+			</ul>
+		</div>
+	</nav>
+
+	<!-- Main screen -->
+	<main class="container my-3 h-100">
+		<div id="my-droparea" class="card">
+			<div class="card-body d-flex align-items-center justify-content-center py-5">
+				<form class="text-center">
+					<p class="card-text">Drag and drop the external firmware ROM of an SC-55 or a close relative<br>or</p>
+					<input id="my-choosefile" class="position-absolute invisible" type="file" accept=".bin,.rom,application/octet-stream">
+					<label class="btn btn-primary" for="my-choosefile">Choose a file</label>
+				</form>
+			</div>
+		</div>
+
+		<div id="my-result" class="d-none">
+			<div class="row mt-3">
+				<div class="col-md-6">
+					<h2 class="h6">What was found</h2>
+					<table id="my-report" class="table table-sm mb-0"><tbody></tbody></table>
+				</div>
+				<div class="col-md-6">
+					<h2 class="h6">Patch</h2>
+					<!-- What is below is what the button will do, and it does not change when the button is pressed:
+					     the preview and the patch come from the same code,
+					     so re-printing it afterwards would only repeat what the table on the left
+					     and the download dialog already say. -->
+					<button id="my-patch" class="btn btn-primary mb-3" type="button">Patch and download</button>
+					<pre id="my-stub" class="border rounded bg-body-tertiary p-3 mb-0"></pre>
+				</div>
+			</div>
+		</div>
+
+		<hr>
+		<div id="my-readme" class="mt-3"></div>
+	</main>
+
+	<!-- Download modal -->
+	<div id="my-download-modal" class="modal fade" data-bs-backdrop="static" tabindex="-1" role="dialog">
+		<div class="modal-dialog">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h2 class="modal-title h5">Download</h2>
+					<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+				</div>
+				<div class="modal-body">
+					<p id="my-download-note" class="small text-body-secondary"></p>
+					<p class="text-center">
+						<a id="my-download" class="btn btn-primary" href="#" role="button" download>Download</a>
+					</p>
+					<p class="small text-body-secondary mb-0">Burn this to the synth's ROM chip and put it back in. Then go to <a href="dump.html">Dump over MIDI</a>.</p>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- Error modal -->
+	<div id="my-error-modal" class="modal fade" tabindex="-1" role="dialog">
+		<div class="modal-dialog">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h2 class="modal-title h5">Error</h2>
+					<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+				</div>
+				<div class="modal-body"><p id="my-error-text" class="mb-0"></p></div>
+			</div>
+		</div>
+	</div>
+
+	<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+	<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+	<script type="module">
+		import {toHex, toHexBytes} from './lib/format.js';
+		import {analyzeRom, patchRom, MAGIC_WORD} from './lib/patcher.js';
+
+		// Every way analyzeRom() and patchRom() can say no, in words for somebody who is about to burn a chip rather than for
+		// somebody reading a disassembly. The library returns a code and the numbers behind it; cli/patch.js spells the same
+		// codes out in far more detail, which is right there and wrong here.
+		const REASON_TEXTS = {
+			'handler-not-found':
+				'This does not look like the firmware ROM of an SC-55 or a close relative.',
+			'handler-ambiguous':
+				'The part this tool patches appears more than once here, so it cannot tell which one to use.',
+			'handler-entry-not-found':
+				'The part this tool patches is here, but not in a shape it recognises.',
+			'no-hook':
+				'Not looked for: the handler above was not found.',
+			'table-not-found':
+				'Not found in this image.',
+			'table-ambiguous':
+				'Several places look like it, so it cannot tell which one is right.',
+			'no-table-entry':
+				'Not worked out: the jump table above was not found.',
+			'bank-has-no-free-run':
+				(d) => `This image has no ${d.neededSize} free bytes anywhere the patch could reach.`,
+			'free-run-too-short':
+				(d) => `The largest free space the patch can reach is ${d.runSize} bytes, and ${d.neededSize} are needed.`,
+			'load-address-out-of-range':
+				'That RAM address does not fit in 20 bits.',
+			'trampoline-outside-bank':
+				'That address is too far from the handler for the patch to reach.',
+			'trampoline-does-not-fit':
+				'That address is past the end of the image.',
+		};
+
+		// `what` is whatever carried the code: a hook, table or stub result, or the details of a patch error.
+		// A wording that needs a number out of it is written as a function; the rest are plain.
+		function getReasonText(what) {
+			const text = REASON_TEXTS[what.reasonCode];
+			if (typeof text === 'function') {
+				return text(what);
+			}
+			return text ?? `Something went wrong (${what.reasonCode}).`;
+		}
+
+		const elemDrop     = document.getElementById('my-droparea');
+		const elemFile     = document.getElementById('my-choosefile');
+		const elemResult   = document.getElementById('my-result');
+		const elemReport   = document.querySelector('#my-report tbody');
+		const elemStub     = document.getElementById('my-stub');
+		const elemPatch    = document.getElementById('my-patch');
+		const elemDownload = document.getElementById('my-download');
+		const elemNote     = document.getElementById('my-download-note');
+		const modalDownload = new bootstrap.Modal('#my-download-modal');
+		const modalError    = new bootstrap.Modal('#my-error-modal');
+
+		let current = null;
+
+		function showError(message) {
+			document.getElementById('my-error-text').textContent = message;
+			modalError.show();
+		}
+
+		elemFile.addEventListener('change', (e) => {
+			if (e.target.files[0]) {
+				loadFile(e.target.files[0]);
+			}
+		});
+		for (const type of ['dragenter', 'dragover']) {
+			elemDrop.addEventListener(type, (e) => {
+				e.preventDefault();
+				elemDrop.classList.add('my-dragover');
+			});
+		}
+		for (const type of ['dragleave', 'drop']) {
+			elemDrop.addEventListener(type, (e) => {
+				e.preventDefault();
+				elemDrop.classList.remove('my-dragover');
+			});
+		}
+		elemDrop.addEventListener('drop', (e) => {
+			if (e.dataTransfer.files[0]) {
+				loadFile(e.dataTransfer.files[0]);
+			}
+		});
+
+		async function loadFile(file) {
+			const bytes = new Uint8Array(await file.arrayBuffer());
+			let info;
+			try {
+				info = analyzeRom(bytes);
+			} catch (e) {
+				showError(e.message);
+				return;
+			}
+			current = {name: file.name, bytes, info};
+			renderReport();
+		}
+
+		function renderReport() {
+			const {name, bytes, info} = current;
+
+			function addRow(label, value, className = '') {
+				const tr = document.createElement('tr');
+				tr.innerHTML = `<th scope="row">${label}</th><td class="${className}"></td>`;
+				tr.lastElementChild.textContent = value;
+				elemReport.appendChild(tr);
+			}
+
+			// Where the stub is, or would go, and which of the three ways said so. The fixed address is the same on every image
+			// but the SC-33, which is the point of it: a patched ROM is recognisable at a glance.
+			function describeStubAddr() {
+				if (!info.stub.isOk) {
+					return getReasonText(info.stub);
+				}
+				const at = `H'${toHex(info.stub.at, 5)}`;
+				if (info.stub.how === 'existing') {
+					return `${at} (already patched; the stub is there)`;
+				}
+				if (info.stub.how === 'fixed') {
+					return `${at} (the fixed address, ${info.stub.runSize} bytes of H'FF)`;
+				}
+				return `${at} (searched: H'${toHex(info.stub.fixedAt, 5)} is taken on this image)`;
+			}
+
+			// What the button would do, worked out once here. The preview and the download both read it,
+			// so the page cannot show one thing and hand over another.
+			let result = null;
+			let failureMessage = null;
+			if (info.isReady) {
+				try {
+					result = patchRom(bytes);
+				} catch (e) {
+					failureMessage = (e.reasonCode)
+						? getReasonText({reasonCode: e.reasonCode, ...e.details}) : e.message;
+				}
+			}
+			current.result = result;
+
+			elemReport.replaceChildren();
+			addRow('File', name);
+			addRow('Size', `${bytes.length} bytes (${Math.round(bytes.length / 1024)} KiB)`);
+			addRow('CRC32', toHex(info.crc32, 8));
+			if (info.version) {
+				addRow('Version string', info.version.text);
+			}
+			// Before the details, because it changes what all of them mean.
+			if (info.stub.isPatched) {
+				addRow('Already patched', `the stub is at H'${toHex(info.stub.at, 5)}`, 'text-success');
+			} else if (info.hasUnknownPatch) {
+				addRow(
+					'Already patched',
+					'Something else has already changed this ROM, in a way this tool does not recognise. Please start over with an unmodified ROM.',
+					'text-danger',
+				);
+			}
+			addRow(
+				'DT1 handler (40 1x 17)', (info.hook.isOk) ? `H'${toHex(info.hook.offset, 5)}` : getReasonText(info.hook),
+				(info.hook.isOk) ? 'text-success' : 'text-danger',
+			);
+			addRow(
+				'Jump table', (info.table.isOk) ? `H'${toHex(info.table.start, 5)}, ${info.table.entries} entries; ours at H'${toHex(info.table.offset, 5)}` : getReasonText(info.table),
+				(info.table.isOk) ? 'text-success' : 'text-danger',
+			);
+			// When the table itself was not found, the row above says why and this one would only repeat it in weaker words.
+			if (info.table.isOk) {
+				addRow('Stub address', describeStubAddr(), (info.stub.isOk) ? 'text-success' : 'text-danger');
+			}
+
+			elemPatch.disabled = !result || result.isUnchanged;
+			elemResult.classList.remove('d-none');
+			renderPreview(result, failureMessage);
+		}
+
+		// Called by renderReport() only; kept out of it because laying out the stub is a separate job from filling in the
+		// table beside it.
+		function renderPreview(result, failureMessage) {
+			if (!result) {
+				elemStub.textContent = failureMessage ?? '';
+				return;
+			}
+			if (result.isUnchanged) {
+				elemStub.textContent =
+					'This ROM is already patched. Nothing here would change it.';
+				return;
+			}
+			const s = result.stub;
+			const addr = result.loadAddr;
+			elemStub.textContent =
+				`H'${toHex(result.tableEntry, 5)}  ${toHexBytes(result.replaced)} -> ${toHexBytes(result.written)}   the jump table entry\n\n` +
+				`H'${toHex(result.trampolineAt, 5)}  ${toHexBytes(s.slice(0, 6)).padEnd(18)}CMP:G.W #H'${toHex(MAGIC_WORD, 4)},@H'${toHex((addr + 2) & 0xffff, 4)}:16\n` +
+				`         ${toHexBytes(s.slice(6, 8)).padEnd(18)}BNE     .+4\n` +
+				`         ${toHexBytes(s.slice(8, 12)).padEnd(18)}PJSR    @H'${toHex(addr, 5)}\n` +
+				`         ${toHexBytes(s.slice(12, 15)).padEnd(18)}JMP     @H'${toHex(result.handler & 0xffff, 4)}`;
+		}
+
+		elemPatch.addEventListener('click', () => {
+			const out = current.result;
+			if (!out) {
+				return;
+			}
+			const name = `${current.name.replace(/\.(bin|rom)$/iu, '')}_patched.bin`;
+			elemDownload.href = URL.createObjectURL(new Blob([out.rom], {type: 'application/octet-stream'}));
+			elemDownload.download = name;
+			elemDownload.textContent = name;
+			elemNote.textContent = `CRC32 ${toHex(out.info.crc32, 8)} -> ${toHex(out.crc32, 8)}`;
+			modalDownload.show();
+		});
+
+		(async () => {
+			try {
+				const md = await (await fetch('README.md')).text();
+				document.getElementById('my-readme').innerHTML = marked.parse(md);
+				for (const table of document.querySelectorAll('#my-readme table')) {
+					table.classList.add('table', 'table-sm');
+				}
+			} catch {
+				// the README is a nicety; the tool works without it
+			}
+		})();
+	</script>
+</body>
+</html>

@@ -141,3 +141,14 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# Build output. "make" regenerates everything here from src/.
+/build/
+
+# The Macro Assembler AS writes its listing and code file next to the source.
+*.lst
+*.p
+
+# npm, for running eslint locally.
+/node_modules/
+/package-lock.json

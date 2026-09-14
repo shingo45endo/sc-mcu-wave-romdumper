@@ -1,0 +1,109 @@
+{
+	"configs": {
+		"mcu-wave-1m1m1m": {
+			"note": "1 MiB in each of the first three 2 MiB slots",
+			"isConfirmed": true
+		},
+		"mcu-wave-2m1m": {
+			"note": "2 MiB in the first slot, 1 MiB in the second",
+			"isConfirmed": true
+		},
+		"mcu-wave-2m": {
+			"note": "2 MiB, the first slot only",
+			"isConfirmed": true
+		},
+		"mcu-wave-1m": {
+			"note": "1 MiB, the first slot only",
+			"isConfirmed": true
+		},
+		"wave-1m": {
+			"note": "1 MiB, the first slot only, and no MCU internal ROM",
+			"isConfirmed": false
+		},
+		"wave-2m": {
+			"note": "2 MiB, the first slot only, and no MCU internal ROM",
+			"isConfirmed": false
+		},
+		"wave-2m2m": {
+			"note": "2 MiB in each of the first two slots, and no MCU internal ROM",
+			"isConfirmed": false
+		}
+	},
+	"models": {
+		"sc-55": {
+			"label": "Roland SC-55",
+			"config": "mcu-wave-1m1m1m",
+			"systemInfo": [
+				"GS           VER=1.11           ",
+				"GS           VER=1.12           ",
+				"GS           VER=1.13           "
+			]
+		},
+		"sc-155": {
+			"label": "Roland SC-155",
+			"config": "mcu-wave-1m1m1m",
+			"systemInfo": [
+				"GS           VER=1.13           "
+			]
+		},
+		"sc-55mk2": {
+			"label": "Roland SC-55mkII, SC-55ST",
+			"config": "mcu-wave-2m1m",
+			"dumper": "subcpu",
+			"systemInfo": [
+				"GS-28 VER=2.00  SC              "
+			]
+		},
+		"sc-33": {
+			"label": "Roland SC-33",
+			"config": "mcu-wave-2m",
+			"systemInfo": [
+				"GS-28 VER=2.00  SC-33           "
+			]
+		},
+		"ds-330": {
+			"label": "Boss DS-330",
+			"config": "mcu-wave-2m",
+			"systemInfo": [
+				"GS Standard  VER=1.20MA1.10     "
+			]
+		},
+		"sd-35": {
+			"label": "Roland SD-35",
+			"config": "mcu-wave-1m",
+			"systemInfo": [
+				"GS-28 VER=2.00  SD              "
+			]
+		},
+		"ra-30": {
+			"label": "Roland RA-30",
+			"config": "wave-1m",
+			"systemInfo": [
+				"GS Standard  VER=2.00           "
+			]
+		},
+		"xp-10": {
+			"label": "Roland XP-10",
+			"config": "wave-2m2m",
+			"systemInfo": [
+				"GS-28 VER=2.00 JV-35/50         "
+			]
+		},
+		"cm-300": {
+			"label": "Roland CM-300, SCC-1",
+			"config": "mcu-wave-1m1m1m",
+			"systemInfo": [
+				"GS Standard  VER=1.10           ",
+				"GS Standard  VER=1.20           ",
+				"GS Standard  VER=1.30           "
+			]
+		},
+		"pma-5": {
+			"label": "Roland PMA-5",
+			"config": "wave-2m",
+			"systemInfo": [
+				"GS-28 VER=2.00  IW-GS           "
+			]
+		}
+	}
+}
