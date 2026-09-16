@@ -3,7 +3,7 @@
 ;
 ; Models:
 ;   - Roland SC-33
-;	- Boss DS-330
+;   - Boss DS-330
 ;
 ;   asl -cpu HD6475328 -i src -o build/mcu-wave-2m.p src/mcu-wave-2m.asm
 ;==========================================================================

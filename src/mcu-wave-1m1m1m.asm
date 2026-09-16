@@ -3,7 +3,8 @@
 ;
 ; Models:
 ;   - Roland SC-55 (all versions)
-;	- Roland SC-155
+;   - Roland SC-155
+;   - Roland CM-300, SCC-1
 ;
 ;   asl -cpu HD6475328 -i src -o build/mcu-wave-1m1m1m.p src/mcu-wave-1m1m1m.asm
 ;==========================================================================

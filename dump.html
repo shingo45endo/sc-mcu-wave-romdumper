@@ -89,7 +89,7 @@
 			<ul class="my-0">
 				<li>The synth must already be running a firmware ROM patched by the <a href="index.html" class="alert-link">patcher</a>.</li>
 				<li>The synth will not be permanently modified by the operations performed here. The dumper only lives in RAM (in the drum set 2 parameter area), and disappears at the next GS reset or power-off.</li>
-			</ul>			
+			</ul>
 		</div>
 
 		<div class="row">
@@ -226,7 +226,7 @@
 		let receiver = new FileDumpReceiver();
 		let expected = null;
 		let lastPacketAt = 0;
-		let detectedReply = null; 
+		let detectedReply = null;
 		let concern = null;
 		let pendingPingResolver = null;
 		const pings = [];
@@ -930,7 +930,8 @@
 				if (NOT_SUPPORTED_ON_BROWSER[key]) {
 					continue;
 				}
-				const caution = (model.isConfirmed) ? '' : ' <span class="small text-warning-emphasis">(not checked on hardware)</span>';
+				const caution = (!model.isLayoutConfirmed) ? ' <span class="small text-warning-emphasis">(ROM layout unverified)</span>' :
+					(!model.isDumpTested) ? ' <span class="small text-body-secondary">(not tested yet)</span>' : '';
 				elemModels.insertAdjacentHTML('beforeend', `
 					<div class="form-check">
 						<label class="form-check-label d-block">
