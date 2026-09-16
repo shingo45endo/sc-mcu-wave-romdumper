@@ -206,7 +206,7 @@ function main() {
 		const declared = catalogue.configs?.[name] ?? {};
 		configs[name] = {
 			note: declared.note ?? '',
-			isConfirmed: declared.isConfirmed ?? false,
+			isLayoutConfirmed: declared.isLayoutConfirmed ?? false,
 			table: `03-${name}.syx`,
 			trigger: '04-trigger.syx',
 			files: files.map((file) => ({
@@ -236,10 +236,13 @@ function main() {
 			continue;
 		}
 		pairs.set(`${kind}/${model.config}`, [kind, model.config]);
+		// Whether this synth itself has been dumped, which is not the same as whether its layout was measured.
+		// A dump can run to completion while it reads the wrong addresses, so neither one implies the other.
 		models[key] = {
 			label: model.label,
 			config: model.config,
 			dumper: kind,
+			isDumpTested: model.isDumpTested ?? false,
 			loader: ['00-gsreset.syx', '01-body.syx', `02-tx-${kind}.syx`],
 			dump: `dump-${model.config}-${kind}.syx`,
 		};
@@ -335,9 +338,16 @@ function main() {
 		const users = Object.entries(models).filter(([, model]) => (model.config === name)).map(([k]) => k);
 		process.stderr.write(`  ${name.padEnd(nameWidth)}${String(config.files.length).padStart(3)} file(s)` +
 			// a column of its own, so the synths below start in the same place whether or not this one is flagged
-			`  ${((config.isConfirmed) ? '' : 'unconfirmed').padEnd('unconfirmed'.length)}` +
+			`  ${((config.isLayoutConfirmed) ? '' : 'unconfirmed').padEnd('unconfirmed'.length)}` +
 			// which synths use it, from the catalogue - not which ones the page offers, which is the page's business
 			`${(users.length) ? `   ${users.join(', ')}` : '   (no synth uses it)'}\n`);
+	}
+
+	// Printed so that a misspelled isDumpTested in the catalogue shows here as every synth at once,
+	// rather than reading as false everywhere and saying nothing.
+	const untestedKeys = Object.entries(models).filter(([, model]) => (!model.isDumpTested)).map(([key]) => key);
+	if (untestedKeys.length > 0) {
+		process.stderr.write(`  not yet tested on hardware: ${untestedKeys.join(', ')}\n`);
 	}
 
 	// The name a file is reported under is the one it was written under, and both the header and the rows line up to it.
