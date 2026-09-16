@@ -182,7 +182,7 @@
 	<script type="module">
 		import {FileDumpReceiver} from './lib/file_dump.js';
 		import {formatDuration, toHexBytes} from './lib/format.js';
-		import {DEVICE_IDS, pingMessage, parsePingReplyData, parsePingReplyDevice, rewriteDeviceId, toSystemInfoText, evaluateSystemInfo} from './lib/identify.js';
+		import {pingMessage, parsePingReplyData, parsePingReplyDevice, rewriteDeviceId, toSystemInfoText, evaluateSystemInfo} from './lib/identify.js';
 		import {loadCapture, calcTransferMs} from './lib/sysex.js';
 		import {convertToRomImage, looksLikeWaveRom} from './lib/wave_scramble.js';
 
@@ -704,7 +704,7 @@
 			elemConnectionStatus.classList.add('d-none');
 			logLine('looking for the synth on device ids 17 to 32');
 			try {
-				for (const id of DEVICE_IDS) {
+				for (const id of [0x10, 0x7f, 0x00, ...Array.from({length: 15}, (_, i) => 0x11 + i), ...Array.from({length: 15}, (_, i) => 0x01 + i)]) {
 					currentOut.send(pingMessage(id));
 					await sleepMs(PING_GAP_MS);
 				}
