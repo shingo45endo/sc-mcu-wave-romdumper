@@ -1,4 +1,4 @@
-const DEFAULT_DEVICE = 0x10;	// GS device 17, the factory default
+const DEFAULT_DEVICE_ID = 0x10;	// GS device 17, the factory default
 const BLOCK_SIZE = 0x40;		// bulk dump address granularity
 const MAX_BLOCK = 15;
 
@@ -10,7 +10,7 @@ console.assert(
 );
 
 // One message per 64-byte block of `image`, loaded at `start` bytes into the drum map. `start` has to be a multiple of 64.
-export function buildBulkMessages(image, start = 0, {mapNo = 1, device = DEFAULT_DEVICE} = {}) {
+export function buildBulkMessages(image, start = 0, {mapNo = 1, device = DEFAULT_DEVICE_ID} = {}) {
 	if (start % BLOCK_SIZE) {
 		throw new Error('the load offset must be a multiple of 64');
 	}
@@ -28,16 +28,16 @@ export function buildBulkMessages(image, start = 0, {mapNo = 1, device = DEFAULT
 	return messages;
 }
 
-export function gsResetMessage({device = DEFAULT_DEVICE} = {}) {
+export function gsResetMessage({device = DEFAULT_DEVICE_ID} = {}) {
 	return buildDt1Message([0x40, 0x00, 0x7f], [0x00], device);
 }
 
 // DT1 to 40 1x 17 - the parameter the ROM hook is attached to.
-export function triggerMessage({partNo = 0, device = DEFAULT_DEVICE} = {}) {
+export function triggerMessage({partNo = 0, device = DEFAULT_DEVICE_ID} = {}) {
 	return buildDt1Message([0x40, 0x10 | (partNo & 0x0f), 0x17], [0x08, 0x00], device);
 }
 
-function buildDt1Message(addr, data, device = DEFAULT_DEVICE) {
+function buildDt1Message(addr, data, device = DEFAULT_DEVICE_ID) {
 	return buildRolandMessage(0x12, [...addr, ...data], device);
 }
 
