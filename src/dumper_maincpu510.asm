@@ -37,7 +37,7 @@ SSR		equ	$FECC				; SCI status  (bit 7 = TDRE)
 TDR		equ	$FECB				; SCI transmit data
 
 		include	tx_maincpu.inc
-		include	rd_pcm532.inc
+		include	rd_pcm510.inc
 
 ;--------------------------------------------------------------------------
 ; The modules have to stay clear of the file table.

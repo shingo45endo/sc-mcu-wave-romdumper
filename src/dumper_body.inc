@@ -12,7 +12,7 @@
 ;   * how a byte reaches MIDI Out, which is a transmit module appended
 ;     after this one - see dumper_maincpu532.asm, dumper_maincpu510.asm and dumper_subcpu.asm
 ;   * where the wave ROM read port is, which is a read module appended
-;     after the transmit module - see rd_pcm532.inc
+;     after the transmit module - see rd_pcm532.inc and rd_pcm510.inc
 ;
 ;   * reads the MCU internal ROM straight out of page 0
 ;   * reads the wave ROM through the read module
