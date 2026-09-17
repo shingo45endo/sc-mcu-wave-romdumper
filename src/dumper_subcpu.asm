@@ -4,7 +4,8 @@
 ; Models:
 ;   SC-55mkII, SC-55ST, SC-55K
 ;
-; Body and transmit module, in that order. Everything model specific is either in the file table or in the module.
+; Body, transmit module and wave ROM read module, in that order. Everything model specific is either in the file
+; table or in one of the modules.
 ;
 ; Assemble with the Macroassembler AS, or just run "make":
 ;
@@ -20,8 +21,8 @@
 		include	dumper_body.inc
 
 ;--------------------------------------------------------------------------
-; The module starts on a bulk dump block boundary, so that a loader message never straddles the seam between the body
-; and the module.
+; The modules start on a bulk dump block boundary, so that a loader message never straddles the seam between the body
+; and the modules.
 ;--------------------------------------------------------------------------
 		if	*>LOADADDR+TXOFS
 		 fatal	"the body has grown past TXOFS - raise it in dumper.inc"
@@ -34,12 +35,13 @@
 TXGATE		equ	$D464		; SC-55mkII, SC-55ST, SC-55K
 
 		include	tx_subcpu.inc
+		include	rd_pcm532.inc
 
 ;--------------------------------------------------------------------------
-; The module has to stay clear of the file table.
+; The modules have to stay clear of the file table.
 ;--------------------------------------------------------------------------
 		if	*>LOADADDR+TABLEOFS
-		 fatal	"the transmit module has grown past TABLEOFS - raise it in dumper.inc"
+		 fatal	"the modules have grown past TABLEOFS - raise it in dumper.inc"
 		endif
 
 		org	LOADADDR+TABLEOFS

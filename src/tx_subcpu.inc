@@ -43,8 +43,9 @@
 ; They are masked only around the ring pointers and the handover itself, which is also why dumper_body.inc saves and
 ; restores SR around the wave ROM read instead of just unmasking.
 ;
-; Included from dumper_subcpu.asm, which is where TXGATE is defined. See dumper_body.inc for the four entry points and
-; why they are branches.
+; Included from dumper_subcpu.asm, which is where TXGATE is defined. See dumper_body.inc for the five entry points
+; and why they are branches. The fifth is the wave ROM read, which a separate module provides; the branch to it is
+; here because the table has to start at the top of the first module.
 ;==========================================================================
 
 TXBUF		equ	$A6D0
@@ -61,6 +62,7 @@ txopen:		BRA	subopen
 txs:		BRA	subtxs
 tx:		BRA	subtx
 txclose:	BRA	subclose
+rdpcm:		BRA	pcmread				; in the read module, which follows this one
 
 ; interrupts stay on, so there is nothing to set up or to put back
 subopen:

@@ -4,7 +4,8 @@
 ; Models:
 ;   SC-55 (all versions), SC-155, SC-33, SCC-1, CM-300, DS-330, SD-35
 ;
-; Body and transmit module, in that order. Everything model specific is either in the file table or in the module.
+; Body, transmit module and wave ROM read module, in that order. Everything model specific is either in the file
+; table or in one of the modules.
 ;
 ; The H8/510 models use the same body and the same module, at different SCI addresses. See dumper_maincpu510.asm.
 ;
@@ -22,8 +23,8 @@
 		include	dumper_body.inc
 
 ;--------------------------------------------------------------------------
-; The module starts on a bulk dump block boundary, so that a loader message never straddles the seam between the body
-; and the module.
+; The modules start on a bulk dump block boundary, so that a loader message never straddles the seam between the body
+; and the modules.
 ;--------------------------------------------------------------------------
 		if	*>LOADADDR+TXOFS
 		 fatal  "the body has grown past TXOFS - raise it in dumper.inc"
@@ -36,12 +37,13 @@ SSR		equ	$FFDC				; SCI status  (bit 7 = TDRE)
 TDR		equ	$FFDB				; SCI transmit data
 
 		include	tx_maincpu.inc
+		include	rd_pcm532.inc
 
 ;--------------------------------------------------------------------------
-; The module has to stay clear of the file table.
+; The modules have to stay clear of the file table.
 ;--------------------------------------------------------------------------
 		if	*>LOADADDR+TABLEOFS
-		 fatal	"the transmit module has grown past TABLEOFS - raise it in dumper.inc"
+		 fatal	"the modules have grown past TABLEOFS - raise it in dumper.inc"
 		endif
 
 		org	LOADADDR+TABLEOFS
