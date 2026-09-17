@@ -18,7 +18,7 @@
 		},
 		"wave-1m": {
 			"note": "1 MiB, the first slot only, and no MCU internal ROM",
-			"isLayoutConfirmed": false
+			"isLayoutConfirmed": true
 		},
 		"wave-2m": {
 			"note": "2 MiB, the first slot only, and no MCU internal ROM",
@@ -90,7 +90,7 @@
 			"label": "Roland RA-30",
 			"config": "wave-1m",
 			"dumper": "maincpu510",
-			"isDumpTested": false,
+			"isDumpTested": true,
 			"systemInfo": [
 				"GS Standard  VER=2.00           "
 			]

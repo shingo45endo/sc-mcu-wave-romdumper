@@ -221,7 +221,7 @@
 		},
 		"wave-1m": {
 			"note": "1 MiB, the first slot only, and no MCU internal ROM",
-			"isLayoutConfirmed": false,
+			"isLayoutConfirmed": true,
 			"table": "03-wave-1m.syx",
 			"trigger": "04-trigger.syx",
 			"files": [
@@ -368,7 +368,7 @@
 			"label": "Roland RA-30",
 			"config": "wave-1m",
 			"dumper": "maincpu510",
-			"isDumpTested": false,
+			"isDumpTested": true,
 			"loader": [
 				"00-gsreset.syx",
 				"01-body.syx",
