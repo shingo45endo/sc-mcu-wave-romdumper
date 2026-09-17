@@ -10,22 +10,26 @@
 ;   * the file table, a separate binary at LOADADDR+TABLEOFS
 ;   * the five-byte ROM hook
 ;   * how a byte reaches MIDI Out, which is a transmit module appended
-;     after this one - see dumper_maincpu.asm and dumper_subcpu.asm
+;     after this one - see dumper_maincpu532.asm, dumper_maincpu510.asm and dumper_subcpu.asm
+;   * where the wave ROM read port is, which is a read module appended
+;     after the transmit module - see rd_pcm532.inc and rd_pcm510.inc
 ;
 ;   * reads the MCU internal ROM straight out of page 0
-;   * reads the wave ROM through the PCM chip's read port
+;   * reads the wave ROM through the read module
 ;   * position independent - it recovers its own address at run time
 ;
-; What this expects of a transmit module:
+; What this expects of the modules:
 ;
 ;   txopen   called once before any output. Whatever the module needs the
 ;            machine to be in for the whole dump, it does here
 ;   txs      send R0 and fold it into the running checksum
 ;   tx       send R0. Every register except R0 comes back untouched
 ;   txclose  called once after the last byte
+;   rdpcm    R0 = the wave ROM byte at R2:R1. Every register except R0
+;            comes back untouched
 ;
-; Those four are branches at the very top of the module, in that order. So they sit at the same four addresses
-; whichever module is appended. That is what keeps this file the same on every model, byte for byte:
+; Those five are branches at the very top of the transmit module, in that order. So they sit at the same five
+; addresses whichever modules are appended. That is what keeps this file the same on every model, byte for byte:
 ; the calls below encode a fixed displacement, and without the branches it would be a different displacement per module.
 ;
 ; The module is appended after this file, so it lands past CODEEND and is not covered by the disassembly check.
@@ -41,14 +45,6 @@
 ;
 ; Entry: PJSR @LOADADDR        Exit: PRTS
 ;==========================================================================
-
-;--------------------------------------------------------------------------
-; Hardware. The PCM chip's wave ROM read port, identical on every H8/500-based Sound Canvas.
-;--------------------------------------------------------------------------
-PCMAH		equ	$E021		; wave ROM address A23-A16
-PCMAL		equ	$E022		; wave ROM address A15-A0
-					;   (the write to A7-A0 fetches)
-PCMDAT		equ	$E03F		; wave ROM read-back latch
 
 ;--------------------------------------------------------------------------
 ; Transfer format
@@ -249,12 +245,7 @@ pass2:		BSR	rdbyte
 rdbyte:		MOV:G.B	@FP,R0				; V_SRC
 		CMP:E.B	#SRC_MCU,R0
 		BEQ	rdmcu
-		STC.W	SR,@-SP				; Save the mask: the sub-CPU module needs
-		ORC.W	#$0700,SR			;   interrupts back on afterwards.
-		MOV:G.B	R2,@PCMAH:16			; A23-A16
-		MOV:G.W	R1,@PCMAL:16			; A15-A0
-		MOV:G.B	@PCMDAT:16,R0
-		LDC.W	@SP+,SR
+		BSR:16	rdpcm				; The port is not at one address on every model.
 		BRA	rdnext
 rdmcu:		MOV:G.B	@R1,R0				; Page 0, so R2 is not used.
 rdnext:		ADD:Q.W	#1,R1

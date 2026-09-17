@@ -9,14 +9,14 @@
 ; Where the parts are loaded.
 ;
 ;   +H'000  block  0  the body, the same on every model byte for byte
-;   +H'1C0  block  7  the transmit module, one per way out to MIDI
+;   +H'1C0  block  7  the modules: one per way out to MIDI, one per wave ROM read port
 ;   +H'280  block 10  the file table, one per wave ROM layout
 ;   +H'380  block 14  the argument block, shared with the host
 ;   +H'38C            end of the drum map, and of what may be loaded
 ;--------------------------------------------------------------------------
 LOADADDR	equ	$8CD4		; SC-55: drum set 2 parameter area
 TXOFS		equ	$1C0		; body must fit below this
-TABLEOFS	equ	$280		; transmit module must fit below this
+TABLEOFS	equ	$280		; the modules must fit below this
 ARGOFS		equ	$380		; file table must fit below this
 ARGLEN		equ	12		; DRUM MAP NAME, the drum map's last field
 

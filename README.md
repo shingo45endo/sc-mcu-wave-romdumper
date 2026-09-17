@@ -30,21 +30,21 @@ Supported Models
 
 | Model name                | ROM images it produces         | MCU    | MIDI Out via | Testing on a real device |
 | ------------------------- | ------------------------------ | ------ | ------------ | ------------------------ |
-| Roland SC-55              | MCU 32 KiB, wave 1 MiB x 3     | H8/532 | main CPU     | done                     |
-| Roland SC-155             | MCU 32 KiB, wave 1 MiB x 3     | H8/532 | main CPU     | not yet                  |
+| Roland SC-55              | MCU 32 KiB, wave 1 MiB x 3     | H8/532 | its own SCI  | done                     |
+| Roland SC-155             | MCU 32 KiB, wave 1 MiB x 3     | H8/532 | its own SCI  | not yet                  |
 | Roland SC-55mkII, SC-55ST | MCU 32 KiB, wave 2 MiB + 1 MiB | H8/532 | sub-CPU      | done                     |
-| Roland SC-33              | MCU 32 KiB, wave 2 MiB         | H8/532 | main CPU     | done                     |
-| Boss DS-330               | MCU 32 KiB, wave 2 MiB         | H8/532 | main CPU     | not yet                  |
-| Roland SD-35              | MCU 32 KiB, wave 1 MiB         | H8/532 | main CPU     | done                     |
-| Roland RA-30              | wave 1 MiB                     | H8/510 | main CPU     | not yet                  |
-| Roland XP-10              | wave 2 MiB x 2                 | H8/510 | main CPU     | not yet                  |
+| Roland SC-33              | MCU 32 KiB, wave 2 MiB         | H8/532 | its own SCI  | done                     |
+| Boss DS-330               | MCU 32 KiB, wave 2 MiB         | H8/532 | its own SCI  | not yet                  |
+| Roland SD-35              | MCU 32 KiB, wave 1 MiB         | H8/532 | its own SCI  | done                     |
+| Roland RA-30              | wave 1 MiB                     | H8/510 | its own SCI  | not yet                  |
+| Roland XP-10              | wave 2 MiB x 2                 | H8/510 | its own SCI  | not yet                  |
 
 The following models probably work too, but because it is difficult to replace their firmware ROMs, they are not directly supported on the website. The command-line tool does not have this limitation.
 
 | Model name           | ROM images it produces     | MCU    | MIDI Out via | Testing on a real device |
 | -------------------- | -------------------------- | ------ | ------------ | ------------------------ |
-| Roland CM-300, SCC-1 | MCU 32 KiB, wave 1 MiB x 3 | H8/532 | main CPU     | not yet                  |
-| Roland PMA-5         | wave 2 MiB                 | H8/510 | main CPU     | not yet                  |
+| Roland CM-300, SCC-1 | MCU 32 KiB, wave 1 MiB x 3 | H8/532 | its own SCI  | not yet                  |
+| Roland PMA-5         | wave 2 MiB                 | H8/510 | its own SCI  | not yet                  |
 
 
 How the patch works

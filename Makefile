@@ -26,6 +26,7 @@ ASFLAGS    = -cpu $(CPU) -i src -q
 P2BINFLAGS = -r '$$-$$' -l 0
 
 SRC   := $(wildcard src/dumper_*.asm) $(wildcard src/*wave-*.asm) src/probe.asm
+INC   := $(wildcard src/*.inc)
 BIN   := $(patsubst src/%.asm,build/%.bin,$(SRC))
 STAMP := syx/models.json
 
@@ -37,7 +38,7 @@ all: $(STAMP)
 build:
 	@mkdir -p build
 
-build/%.p: src/%.asm src/dumper.inc src/dumper_body.inc src/tx_maincpu.inc src/tx_subcpu.inc | build
+build/%.p: src/%.asm $(INC) | build
 	$(ASL) $(ASFLAGS) -o $@ $<
 
 build/%.bin: build/%.p

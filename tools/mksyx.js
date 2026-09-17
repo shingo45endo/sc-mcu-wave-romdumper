@@ -25,7 +25,15 @@ import {writeSmf, concatSysex} from './smf_write.js';
 
 const ROOT = path.join(path.dirname(url.fileURLToPath(import.meta.url)), '..');
 
-const DEFAULT_PAYLOAD = 'maincpu';
+const DEFAULT_PAYLOAD = 'maincpu532';
+
+// What each payload is named for. The two main CPU ones run the same code and differ only in where their CPU keeps
+// the SCI registers, so the name has to say which CPU rather than just "main CPU".
+const CPU_LABELS = {
+	maincpu532: 'main CPU (H8/532)',
+	maincpu510: 'main CPU (H8/510)',
+	subcpu: 'sub-CPU',
+};
 
 function formatSmfTitle(stepNo, what) {
 	const PROJECT = 'sc-mcu-wave-romdumper';
@@ -56,7 +64,7 @@ function parseEquates(text) {
 }
 
 function getCpuLabel(kind) {
-	return (kind === 'subcpu') ? 'sub-CPU' : 'main CPU';
+	return CPU_LABELS[kind] ?? kind;
 }
 
 function printUsageAndExit(message) {
