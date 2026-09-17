@@ -368,7 +368,7 @@
 			"label": "Roland RA-30",
 			"config": "wave-1m",
 			"dumper": "maincpu510",
-			"isDumpTested": false,
+			"isDumpTested": true,
 			"loader": [
 				"00-gsreset.syx",
 				"01-body.syx",
