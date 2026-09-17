@@ -1,15 +1,17 @@
 ;==========================================================================
-; sc-mcu-wave-romdumper - payload for models whose main CPU puts the bytes on MIDI Out itself
+; sc-mcu-wave-romdumper - payload for H8/510 models whose main CPU puts the bytes on MIDI Out itself
 ;
 ; Models:
-;   SC-55 (all versions), SC-155, SC-33, SCC-1, DS-330, SD-35, RA-30, CM-300, XP-10
+;   RA-30, XP-10, PMA-5
 ;
 ; Body and transmit module, in that order. Everything model specific is either in the file table or in the module.
 ;
+; The H8/532 models use the same body and the same module, at different SCI addresses. See dumper_maincpu532.asm.
+;
 ; Assemble with the Macroassembler AS, or just run "make":
 ;
-;   asl -cpu HD6475328 -i src -o build/dumper_maincpu.p src/dumper_maincpu.asm
-;   p2bin build/dumper_maincpu.p build/dumper_maincpu.bin -r '$-$' -l 0
+;   asl -cpu HD6475328 -i src -o build/dumper_maincpu510.p src/dumper_maincpu510.asm
+;   p2bin build/dumper_maincpu510.p build/dumper_maincpu510.bin -r '$-$' -l 0
 ;==========================================================================
 
 		cpu	HD6475328
@@ -28,6 +30,10 @@
 		endif
 
 		org	LOADADDR+TXOFS
+
+; Where the H8/510 keeps its SCI. Channel 0: the firmware never transmits on channel 1, so MIDI Out is this one.
+SSR		equ	$FECC				; SCI status  (bit 7 = TDRE)
+TDR		equ	$FECB				; SCI transmit data
 
 		include	tx_maincpu.inc
 

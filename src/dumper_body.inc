@@ -10,7 +10,7 @@
 ;   * the file table, a separate binary at LOADADDR+TABLEOFS
 ;   * the five-byte ROM hook
 ;   * how a byte reaches MIDI Out, which is a transmit module appended
-;     after this one - see dumper_maincpu.asm and dumper_subcpu.asm
+;     after this one - see dumper_maincpu532.asm, dumper_maincpu510.asm and dumper_subcpu.asm
 ;
 ;   * reads the MCU internal ROM straight out of page 0
 ;   * reads the wave ROM through the PCM chip's read port

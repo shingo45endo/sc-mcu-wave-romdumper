@@ -33,6 +33,7 @@
 		"sc-55": {
 			"label": "Roland SC-55",
 			"config": "mcu-wave-1m1m1m",
+			"dumper": "maincpu532",
 			"isDumpTested": true,
 			"systemInfo": [
 				"GS           VER=1.11           ",
@@ -43,6 +44,7 @@
 		"sc-155": {
 			"label": "Roland SC-155",
 			"config": "mcu-wave-1m1m1m",
+			"dumper": "maincpu532",
 			"isDumpTested": false,
 			"systemInfo": [
 				"GS           VER=1.13           "
@@ -60,6 +62,7 @@
 		"sc-33": {
 			"label": "Roland SC-33",
 			"config": "mcu-wave-2m",
+			"dumper": "maincpu532",
 			"isDumpTested": true,
 			"systemInfo": [
 				"GS-28 VER=2.00  SC-33           "
@@ -68,6 +71,7 @@
 		"ds-330": {
 			"label": "Boss DS-330",
 			"config": "mcu-wave-2m",
+			"dumper": "maincpu532",
 			"isDumpTested": false,
 			"systemInfo": [
 				"GS Standard  VER=1.20MA1.10     "
@@ -76,6 +80,7 @@
 		"sd-35": {
 			"label": "Roland SD-35",
 			"config": "mcu-wave-1m",
+			"dumper": "maincpu532",
 			"isDumpTested": true,
 			"systemInfo": [
 				"GS-28 VER=2.00  SD              "
@@ -84,6 +89,7 @@
 		"ra-30": {
 			"label": "Roland RA-30",
 			"config": "wave-1m",
+			"dumper": "maincpu510",
 			"isDumpTested": false,
 			"systemInfo": [
 				"GS Standard  VER=2.00           "
@@ -92,6 +98,7 @@
 		"xp-10": {
 			"label": "Roland XP-10",
 			"config": "wave-2m2m",
+			"dumper": "maincpu510",
 			"isDumpTested": false,
 			"systemInfo": [
 				"GS-28 VER=2.00 JV-35/50         "
@@ -100,6 +107,7 @@
 		"cm-300": {
 			"label": "Roland CM-300, SCC-1",
 			"config": "mcu-wave-1m1m1m",
+			"dumper": "maincpu532",
 			"isDumpTested": false,
 			"systemInfo": [
 				"GS Standard  VER=1.10           ",
@@ -110,6 +118,7 @@
 		"pma-5": {
 			"label": "Roland PMA-5",
 			"config": "wave-2m",
+			"dumper": "maincpu510",
 			"isDumpTested": false,
 			"systemInfo": [
 				"GS-28 VER=2.00  IW-GS           "
