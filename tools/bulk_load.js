@@ -32,9 +32,9 @@ export function gsResetMessage({device = DEFAULT_DEVICE_ID} = {}) {
 	return buildDt1Message([0x40, 0x00, 0x7f], [0x00], device);
 }
 
-// DT1 to 40 1x 17 - the parameter the ROM hook is attached to.
-export function triggerMessage({partNo = 0, device = DEFAULT_DEVICE_ID} = {}) {
-	return buildDt1Message([0x40, 0x10 | (partNo & 0x0f), 0x17], [0x08, 0x00], device);
+// DT1 to 40 10 17 - the parameter the ROM hook is attached to.
+export function triggerMessage({device = DEFAULT_DEVICE_ID} = {}) {
+	return buildDt1Message([0x40, 0x10, 0x17], [0x08, 0x00], device);
 }
 
 function buildDt1Message(addr, data, device = DEFAULT_DEVICE_ID) {
