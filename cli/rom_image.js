@@ -6,6 +6,7 @@
 	  node cli/rom_image.js --check sc55_waverom1.bin WAVE_00.BIN
 
 	  -d, --dir     where to write (default: .)
+	  --scramble    which family the dump came from: sc55 or sc88. Required
 	  --suffix      appended before the extension (default: _rom)
 	  --check       compare against a known chip dump instead of writing
 	  -r, --reverse go the other way: chip image -> what the port would return
@@ -16,13 +17,13 @@ import path from 'node:path';
 import process from 'node:process';
 import util from 'node:util';
 
-import {convertToRomImage, convertToPortOrder, toHeaderText, looksLikeWaveRom} from '../lib/wave_scramble.js';
+import {convertToRomImage, convertToPortOrder, getScrambleNames, toHeaderText, looksLikeWaveRom} from '../lib/wave_scramble.js';
 
 function printUsageAndExit(message) {
 	if (message) {
 		process.stderr.write(`rom_image: ${message}\n\n`);
 	}
-	process.stderr.write('usage: node cli/rom_image.js <dump.bin> [more...] [-d outdir]\n' +
+	process.stderr.write('usage: node cli/rom_image.js --scramble sc55|sc88 <dump.bin> [more...] [-d outdir]\n' +
 		'                            [--suffix S] [-r] [--check <chip.bin> <dump.bin>]\n');
 	process.exit((message) ? 2 : 0);
 }
@@ -48,6 +49,7 @@ try {
 		options: {
 			help: {type: 'boolean', short: 'h'},
 			dir: {type: 'string', short: 'd', default: '.'},
+			scramble: {type: 'string'},
 			suffix: {type: 'string', default: '_rom'},
 			reverse: {type: 'boolean', short: 'r', default: false},
 			check: {type: 'boolean', default: false},
@@ -60,7 +62,11 @@ try {
 if (values.help) {
 	printUsageAndExit();
 }
-const {dir, suffix, reverse: isReverse, check: isCheck} = values;
+const {dir, scramble, suffix, reverse: isReverse, check: isCheck} = values;
+// No default: the two families scramble differently and a wrong guess is a whole ROM of wrong bytes.
+if (!getScrambleNames().includes(scramble)) {
+	printUsageAndExit(`--scramble must be given, as one of: ${getScrambleNames().join(', ')}`);
+}
 
 // Compare the two, and stop here.
 if (isCheck) {
@@ -68,7 +74,7 @@ if (isCheck) {
 		printUsageAndExit('--check takes exactly two files');
 	}
 	const expected = readInputFile(inputs[0]);
-	const actual = convertToRomImage(readInputFile(inputs[1]));
+	const actual = convertToRomImage(readInputFile(inputs[1]), {scramble});
 	const n = Math.min(expected.length, actual.length);
 	let badCount = 0;
 	let first = -1;
@@ -102,7 +108,7 @@ for (const input of inputs) {
 	}
 	let out;
 	try {
-		out = (isReverse) ? convertToPortOrder(sourceBytes) : convertToRomImage(sourceBytes);
+		out = (isReverse) ? convertToPortOrder(sourceBytes, {scramble}) : convertToRomImage(sourceBytes, {scramble});
 	} catch (e) {
 		process.stderr.write(`${path.basename(input)}: ${e.message}\n`);
 		failCount++;

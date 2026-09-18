@@ -145,10 +145,10 @@ for (const window of windows) {
 process.stderr.write('\n');
 if (header) {
 	const raw = toHeaderText(header.bytes);
-	const desc = toHeaderText(convertToRomImage(header.bytes.slice(0, 112), 20).slice(0, 32));
+	const desc = toHeaderText(convertToRomImage(header.bytes.slice(0, 112), {bits: 20}).slice(0, 32));
 	process.stderr.write(`  window at address 0, as received : ${raw}\n`);
 	process.stderr.write(`  ...as a ROM image                : ${desc}\n`);
-	process.stderr.write((looksLikeWaveRom(convertToRomImage(header.bytes.slice(0, 112), 20)))
+	process.stderr.write((looksLikeWaveRom(convertToRomImage(header.bytes.slice(0, 112), {bits: 20})))
 		? '  that reads as a Roland header, so this model uses the scrambling we know\n'
 		: '  that is not a Roland header - this model scrambles differently, so\n' +
 			'  cli/rom_image.js will not produce a usable image for it\n');
