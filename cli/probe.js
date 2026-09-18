@@ -2,7 +2,7 @@
 /*
 	Work out an unknown model's wave ROM layout from a probe dump.
 
-	  node cli/probe.js capture.syx [-o src/wave-XXX.asm] [--name FOO]
+	  node cli/probe.js capture.syx [-o src/55/wave-XXX.asm] [--name FOO]
 
 	The capture may be raw SysEx, a MIDI file, or hex text; the form is recognized by content, not by extension.
 
@@ -22,7 +22,7 @@ import {findDevices, isPlausibleSize} from '../lib/probe_map.js';
 import {loadCapture} from '../lib/sysex.js';
 import {convertToRomImage, toHeaderText, looksLikeWaveRom} from '../lib/wave_scramble.js';
 
-// The source tags a file table entry carries. Defined for real by SRC_MCU and SRC_PCM in src/dumper.inc;
+// The source tags a file table entry carries. Defined for real by SRC_MCU and SRC_PCM in src/55/dumper.inc;
 // nothing here reads a built table, it only writes the assembler source for one.
 const SRC_MCU = 0;
 const SRC_PCM = 1;
@@ -185,7 +185,7 @@ for (const device of devices) {
 // Layouts are named by their device sizes, one per 2 MiB slot, because several synths share one.
 const configName = `${(hasMcu) ? 'mcu-' : ''}wave-${devices.map((device) => `${device.size >> 20}m`).join('')}`;
 
-// Assembler source for a table, in the form src/table-*.asm uses. Lives here rather than in lib/ because turning a
+// Assembler source for a table, in the form src/55/table-*.asm uses. Lives here rather than in lib/ because turning a
 // probe result into something that can be assembled is the one thing this tool is for.
 function formatTableAssembly({files}, {title = '', notes = []} = {}) {
 	const lines = [];
@@ -229,7 +229,7 @@ const asm = formatTableAssembly({files: entries}, {
 		'trusting it: a device whose halves happen to hold identical data would',
 		'be reported as smaller than it is.',
 		'',
-		`Save as src/${configName}.asm, add the synth to src/catalogue.json`,
+		`Save as src/55/${configName}.asm, add the synth to tools/catalogue.json`,
 		`with "config": "${configName}", and run make.`,
 	],
 });

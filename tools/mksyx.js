@@ -2,12 +2,12 @@
 /*
 	Build the fixed SysEx and MIDI files that drive the dumper.
 
-	Input is what the assembler produced in build/, plus the model catalogue in src/catalogue.json. Output is syx/.
+	Input is what the assembler produced in build/, plus the model catalogue in tools/catalogue.json. Output is syx/.
 
-	    node tools/mksyx.js [--bin build] [--src src] [--out syx]
+	    node tools/mksyx.js [--bin build] [--src src/55] [--out syx]
 
 	  --bin         where the assembler output is (default: build)
-	  --src         where dumper.inc and catalogue.json are (default: src)
+	  --src         where dumper.inc is (default: src/55)
 	  --out         where to write the .syx and .mid files (default: syx)
 */
 
@@ -72,9 +72,9 @@ function printUsageAndExit(message) {
 		process.stderr.write(`mksyx: ${message}\n\n`);
 	}
 
-	process.stderr.write('usage: node tools/mksyx.js [--bin build] [--src src] [--out syx]\n' +
+	process.stderr.write('usage: node tools/mksyx.js [--bin build] [--src src/55] [--out syx]\n' +
 		'  --bin   where the assembler output is\n' +
-		'  --src   where dumper.inc and catalogue.json are\n' +
+		'  --src   where dumper.inc is\n' +
 		'  --out   where to write the .syx and .mid files\n');
 	process.exit((message) ? 2 : 0);
 }
@@ -89,7 +89,7 @@ function main() {
 			options: {
 				help: {type: 'boolean', short: 'h'},
 				bin: {type: 'string', default: 'build'},
-				src: {type: 'string', default: 'src'},
+				src: {type: 'string', default: 'src/55'},
 				out: {type: 'string', default: 'syx'},
 			},
 			allowPositionals: true,
@@ -118,7 +118,7 @@ function main() {
 		throw new Error('dumper.inc has no LOADADDR / TXOFS / TABLEOFS');
 	}
 
-	const catalogue = JSON.parse(fs.readFileSync(path.join(srcDir, 'catalogue.json'), 'utf8'));
+	const catalogue = JSON.parse(fs.readFileSync(path.join(ROOT, 'tools', 'catalogue.json'), 'utf8'));
 
 	// Discover the dumpers the assembler built, and read each one in.
 	const dumpers = fs.readdirSync(binDir).

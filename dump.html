@@ -291,7 +291,7 @@
 		}
 
 		function buildRomFigure(model) {
-			const SLOT_BYTES = 2 * 1024 * 1024;   // one wave ROM chip select, see src/catalogue.json
+			const SLOT_BYTES = 2 * 1024 * 1024;   // one wave ROM chip select, see tools/catalogue.json
 
 			function formatSize(size) {
 				return (size >= 1024 * 1024) ? `${Math.round(size / (1024 * 1024))} MiB` : `${Math.round(size / 1024)} KiB`;
