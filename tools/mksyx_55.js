@@ -4,7 +4,7 @@
 
 	Input is what the assembler produced in build/, plus the model catalogue in tools/catalogue.json. Output is syx/.
 
-	    node tools/mksyx.js [--bin build] [--src src/55] [--out syx]
+	    node tools/mksyx_55.js [--bin build] [--src src/55] [--out syx]
 
 	  --bin         where the assembler output is (default: build)
 	  --src         where dumper.inc is (default: src/55)
@@ -20,7 +20,7 @@ import util from 'node:util';
 import {formatDuration, toHex} from '../lib/format.js';
 
 import {buildBulkMessages, gsResetMessage, triggerMessage} from './bulk_load.js';
-import {parseTable, estimateDumpTime, SOURCE_NAMES} from './file_table.js';
+import {parseTable, estimateDumpTime, SOURCE_NAMES} from './file_table_55.js';
 import {writeSmf, concatSysex} from './smf_write.js';
 
 const ROOT = path.join(path.dirname(url.fileURLToPath(import.meta.url)), '..');
@@ -72,7 +72,7 @@ function printUsageAndExit(message) {
 		process.stderr.write(`mksyx: ${message}\n\n`);
 	}
 
-	process.stderr.write('usage: node tools/mksyx.js [--bin build] [--src src/55] [--out syx]\n' +
+	process.stderr.write('usage: node tools/mksyx_55.js [--bin build] [--src src/55] [--out syx]\n' +
 		'  --bin   where the assembler output is\n' +
 		'  --src   where dumper.inc is\n' +
 		'  --out   where to write the .syx and .mid files\n');

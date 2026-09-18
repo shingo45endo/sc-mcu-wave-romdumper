@@ -48,14 +48,14 @@ build/%.p: src/55/%.asm $(INC) | build
 build/%.bin: build/%.p
 	$(P2BIN) $< $@ $(P2BINFLAGS)
 
-$(STAMP): $(BIN) tools/mksyx.js tools/bulk_load.js tools/file_table.js tools/smf_write.js \
+$(STAMP): $(BIN) tools/mksyx_55.js tools/bulk_load.js tools/file_table_55.js tools/smf_write.js \
           src/55/dumper.inc tools/catalogue.json lib/format.js lib/sysex.js
-	$(NODE) tools/mksyx.js
+	$(NODE) tools/mksyx_55.js
 
 # Rebuild into a scratch directory and compare, so a stale syx/ is caught.
 check: $(BIN)
 	@rm -rf build/_check && mkdir -p build/_check
-	@$(NODE) tools/mksyx.js --out build/_check >/dev/null
+	@$(NODE) tools/mksyx_55.js --out build/_check >/dev/null
 	@if diff -r -q syx build/_check >/dev/null 2>&1; then \
 		echo "syx/ is up to date"; \
 	else \
