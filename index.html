@@ -110,7 +110,8 @@
 	<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
 	<script type="module">
 		import {toHex, toHexBytes} from './lib/format.js';
-		import {analyzeRom, patchRom, MAGIC_WORD} from './lib/patcher_55.js';
+		import {MAGIC_WORD} from './lib/hook.js';
+		import {analyzeRom, patchRom} from './lib/patcher_55.js';
 
 		// Every way analyzeRom() and patchRom() can say no, in words for somebody who is about to burn a chip rather than for
 		// somebody reading a disassembly. The library returns a code and the numbers behind it; cli/patch_55.js spells the same

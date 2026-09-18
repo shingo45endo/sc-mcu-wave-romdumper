@@ -17,7 +17,8 @@ import process from 'node:process';
 import util from 'node:util';
 
 import {toHex, toHexBytes} from '../lib/format.js';
-import {analyzeRom, patchRom, triggerSysEx, MAGIC_WORD} from '../lib/patcher_88.js';
+import {MAGIC_WORD, triggerSysEx} from '../lib/hook.js';
+import {analyzeRom, patchRom} from '../lib/patcher_88.js';
 
 const REASON_TEXTS = {
 	'handler-not-found':
