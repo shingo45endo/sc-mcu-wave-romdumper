@@ -29,6 +29,7 @@ const ROOT = path.join(path.dirname(url.fileURLToPath(import.meta.url)), '..');
 const DEFAULT_DUMPER = 'maincpu532';
 const FAMILY = '55';
 const BLOCK_ORDER = 'sc55';
+const SCRAMBLE = 'sc55';	// how this generation's board wires its wave ROMs
 
 // What each dumper is named for. The two main CPU ones run the same code and differ only in where their CPU keeps
 // the SCI registers, so the name has to say which CPU rather than just "main CPU".
@@ -256,6 +257,7 @@ function main() {
 			label: model.label,
 			config: model.config,
 			dumper: kind,
+			scramble: SCRAMBLE,
 			isDumpTested: model.isDumpTested ?? false,
 			loader: ['00-gsreset.syx', '01-body.syx', `02-tx-${kind}.syx`],
 			dump: `dump-${model.config}-${kind}.syx`,

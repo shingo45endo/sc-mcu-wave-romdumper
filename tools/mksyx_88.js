@@ -32,6 +32,7 @@ const ROOT = path.join(path.dirname(url.fileURLToPath(import.meta.url)), '..');
 
 const FAMILY = '88';
 const BLOCK_ORDER = 'sc88';
+const SCRAMBLE = 'sc88';	// how this generation's board wires its wave ROMs
 const MAP_NO = 1;
 
 // The dumper takes its arguments in Drum Map Name, so it must not reach that far itself.
@@ -169,7 +170,8 @@ function main() {
 		configs[model.config] = {
 			note: declared.note ?? '',
 			isLayoutConfirmed: declared.isLayoutConfirmed ?? false,
-			files: files.map((file) => ({name: file.name, size: file.size, source: file.source, start: file.start})),
+			files: files.map((file) => ({name: file.name, size: file.size, source: file.source, start: file.start,
+				seconds: file.seconds})),
 			seconds: files.reduce((total, file) => (total + file.seconds), 0),
 		};
 		models[key] = {
@@ -177,6 +179,7 @@ function main() {
 			family: FAMILY,
 			config: model.config,
 			dumper: model.dumper,
+			scramble: SCRAMBLE,
 			isDumpTested: model.isDumpTested ?? false,
 			loader: ['00-gsreset.syx', `${loaderStem}.syx`],
 			readRegions: model.readRegions,
