@@ -20,7 +20,7 @@ import process from 'node:process';
 import url from 'node:url';
 import util from 'node:util';
 
-import {BulkDumpReceiver} from '../lib/bulk_dump.js';
+import {BulkDumpReceiver, toAddress} from '../lib/bulk_dump.js';
 import {FileDumpReceiver} from '../lib/file_dump.js';
 import {getBulkDumpResult, getFileDumpResults} from '../lib/dump_result.js';
 import {loadCapture} from '../lib/sysex.js';
@@ -181,10 +181,7 @@ function getRegionSets() {
 		if (!model.readRegions?.length) {
 			continue;
 		}
-		const regions = model.readRegions.map((region) => ({
-			addr: region.addr.trim().split(/\s+/u).map((token) => parseInt(token, 16)),
-			size: region.size,
-		}));
+		const regions = model.readRegions.map((region) => ({addr: toAddress(region.addr), size: region.size}));
 		const id = JSON.stringify(regions);
 		if (!sets.has(id)) {
 			sets.set(id, {regions, names: []});

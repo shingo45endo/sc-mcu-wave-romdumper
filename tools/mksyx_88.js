@@ -23,9 +23,8 @@ import url from 'node:url';
 import util from 'node:util';
 
 import {formatDuration} from '../lib/format.js';
-import {CHIP_SELECT_SIZE, planPasses, toRequestBytes} from '../lib/wave_plan_88.js';
-import {buildFileHeader, buildPassHeader, HEADER_SIZE} from '../lib/bulk_dump.js';
-import {buildRequestMessage, buildWriteMessage, gsResetMessage, triggerMessage} from '../lib/gs_message.js';
+import {CHIP_SELECT_SIZE, GAP_ANSWER_MS, GAP_REQUEST_MS, GAP_TRIGGER_MS, buildFileHeaderPass, buildPass, getPassBytes, planPasses, toRegions} from '../lib/wave_plan_88.js';
+import {gsResetMessage} from '../lib/gs_message.js';
 import {buildBulkMessages} from './bulk_load.js';
 import {writeSmf} from './smf_write.js';
 
@@ -33,24 +32,10 @@ const ROOT = path.join(path.dirname(url.fileURLToPath(import.meta.url)), '..');
 
 const FAMILY = '88';
 const BLOCK_ORDER = 'sc88';
-const BLOCK_SIZE = 0x40;
 const MAP_NO = 1;
 
-// These have to match src/88/dumper_88.inc. Drum Map Name is the drum map's last field, which is where the SC-55
-// dumper takes its arguments too.
-const ARG_OFFSET = 0x380;
-const ARG_LEN = 12;
-const GROUP_BYTES = 7;
-
-// Asking for more than an area holds returns the rest of it, whatever an address step means on this revision.
-const WHOLE_AREA = 0x2000;
-
-// What each message has to be followed by. The last request of a pass waits for the synth's whole answer; the others
-// are queued behind it, which is what makes a pass take one wait rather than four.
-const GAP_REQUEST_MS = 20;
-const GAP_TRIGGER_MS = 150;		// long enough for the dumper to finish
-const GAP_READ_MS = 0;
-const GAP_ANSWER_MS = 4500;		// measured at about 4100 for four areas
+// The dumper takes its arguments in Drum Map Name, so it must not reach that far itself.
+ const ARG_OFFSET = 0x380;
 
 function printUsageAndExit(message) {
 	if (message) {
@@ -60,50 +45,6 @@ function printUsageAndExit(message) {
 		'       node tools/mksyx_88.js --model KEY --chip N --at HHHH[,HHHH...]\n');
 
 	process.exit((message) ? 2 : 0);
-}
-
-function toAddress(text) {
-	const bytes = text.trim().split(/\s+/u).map((token) => parseInt(token, 16));
-	if (bytes.length !== 3 || bytes.some((byte) => !(byte >= 0 && byte <= 0x7f))) {
-		throw new Error(`${JSON.stringify(text)} is not a bulk dump address`);
-	}
-
-	return bytes;
-}
-
-// Ask for every area the buffer is made of, and wait for the lot.
-function buildReadBack(regions) {
-	return regions.map((region, i) => ({
-		bytes: buildRequestMessage(toAddress(region.addr), WHOLE_AREA),
-		gapMs: (i === regions.length - 1) ? GAP_ANSWER_MS : GAP_READ_MS,
-	}));
-}
-
-// One pass: put the header and the request in place, call the dumper, then read the buffer back.
-function buildPass(chipNo, pass, regions) {
-	const groups = pass.size / GROUP_BYTES;
-	console.assert(Number.isInteger(groups), 'a pass is a whole number of groups');
-	console.assert(toRequestBytes(chipNo, pass.at, groups).length <= ARG_LEN, 'the request fits in Drum Map Name');
-	const header = toAddress(regions[0].addr);
-	const request = [0x49, (MAP_NO << 4) | (ARG_OFFSET / BLOCK_SIZE), 0x00];
-
-	return [
-		{bytes: buildWriteMessage(header, buildPassHeader({at: pass.at, size: pass.size}), {isNibble: false}),
-			gapMs: GAP_REQUEST_MS},
-		{bytes: buildWriteMessage(request, toRequestBytes(chipNo, pass.at, groups)), gapMs: GAP_REQUEST_MS},
-		{bytes: triggerMessage(), gapMs: GAP_TRIGGER_MS},
-		...buildReadBack(regions),
-	];
-}
-
-// The file header is written and read straight back. The dumper is never called, so it takes one wait.
-function buildFileHeaderPass(regions, {size, passCount, name}) {
-	const header = buildFileHeader({size, passCount, name});
-
-	return [
-		{bytes: buildWriteMessage(toAddress(regions[0].addr), header, {isNibble: false}), gapMs: GAP_REQUEST_MS},
-		...buildReadBack(regions),
-	];
 }
 
 function main() {
@@ -169,13 +110,12 @@ function main() {
 			continue;
 		}
 		const files = [];
-		const regions = model.readRegions ?? [];
-		if (!regions.length) {
+		if (!model.readRegions?.length) {
 			throw new Error(`${key} has no readRegions, so there is nothing to read the dumper's result out of`);
 		}
 
-		const passBytes = ((regions.reduce((total, one) => (total + one.size), 0) - HEADER_SIZE) / 8) * GROUP_BYTES;
-		console.assert(Number.isInteger(passBytes), 'the areas must hold the header and a whole number of groups');
+		const regions = toRegions(model.readRegions);
+		const passBytes = getPassBytes(regions);
 		// The dumper on its own, so the page can send it the way it sends the other family's: one file per part.
 		const dumperMessages = buildBulkMessages(body, 0, {mapNo: MAP_NO, blockOrder: BLOCK_ORDER});
 		const loader = [gsResetMessage(), ...dumperMessages];
@@ -239,7 +179,7 @@ function main() {
 			dumper: model.dumper,
 			isDumpTested: model.isDumpTested ?? false,
 			loader: ['00-gsreset.syx', `${loaderStem}.syx`],
-			readRegions: regions,
+			readRegions: model.readRegions,
 			dump: files.map((file) => file.dump),
 			...(model.systemInfo) ? {systemInfo: model.systemInfo} : {},
 		};
