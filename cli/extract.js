@@ -4,7 +4,7 @@
 
 	  node cli/extract.js capture.syx [-d outdir] [--prefix P]
 
-	The capture can be any of three things and is recognised by its content, so the extension does not matter:
+	The capture can be any of three things and is recognized by its content, so the extension does not matter:
 
 	  raw SysEx      what most librarians and .syx files hold
 	  a MIDI file    what a MIDI sequencer records; the SysEx events are pulled out

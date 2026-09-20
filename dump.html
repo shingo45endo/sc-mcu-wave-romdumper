@@ -734,7 +734,7 @@
 				elemConnectionStatus.classList.remove('d-none');
 				logLine(`replied on device id ${deviceId - 0x10 + 17}${info}`);
 				// The 32 bytes verbatim as well: this block is not documented, so a reply that is not text is still worth seeing.
-				// A reply of any other size is not the block at all, and saying so beats leaving "not recognised" unexplained.
+				// A reply of any other size is not the block at all, and saying so beats leaving "not recognized" unexplained.
 				const size = (pings[0].data.length === 32) ? ''
 					: ` (${pings[0].data.length} bytes, not the 32 this block is)`;
 				logLine(`  system information (40 30 00): ${toHexBytes(pings[0].data)}${size}`);

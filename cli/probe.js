@@ -4,7 +4,7 @@
 
 	  node cli/probe.js capture.syx [-o src/wave-XXX.asm] [--name FOO]
 
-	The capture may be raw SysEx, a MIDI file, or hex text; the form is recognised by content, not by extension.
+	The capture may be raw SysEx, a MIDI file, or hex text; the form is recognized by content, not by extension.
 
 	  -o, --out     write an assembler file table here (default: stdout)
 	  --name        prefix for the generated file names (default: DUMP)

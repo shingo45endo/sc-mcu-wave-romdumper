@@ -262,7 +262,7 @@ hdrtxt:		DC.B	$F0,$7E,DEVICE,$07,$01,SENDER
 HDRLEN		equ	*-hdrtxt
 
 ;--------------------------------------------------------------------------
-; Working storage. Nothing here needs initialising by the loader.
+; Working storage. Nothing here needs initializing by the loader.
 ;--------------------------------------------------------------------------
 		align	2
 vars:		DC.B	0,0,0,0,0,0,0,0,0,0,0,0		; VARLEN bytes

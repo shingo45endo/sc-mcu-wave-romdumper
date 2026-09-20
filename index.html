@@ -121,7 +121,7 @@
 			'handler-ambiguous':
 				'The part this tool patches appears more than once here, so it cannot tell which one to use.',
 			'handler-entry-not-found':
-				'The part this tool patches is here, but not in a shape it recognises.',
+				'The part this tool patches is here, but not in a shape it recognizes.',
 			'no-hook':
 				'Not looked for: the handler above was not found.',
 			'table-not-found':
@@ -217,7 +217,7 @@
 			}
 
 			// Where the stub is, or would go, and which of the three ways said so. The fixed address is the same on every image
-			// but the SC-33, which is the point of it: a patched ROM is recognisable at a glance.
+			// but the SC-33, which is the point of it: a patched ROM is recognizable at a glance.
 			function describeStubAddr() {
 				if (!info.stub.isOk) {
 					return getReasonText(info.stub);
@@ -259,7 +259,7 @@
 			} else if (info.hasUnknownPatch) {
 				addRow(
 					'Already patched',
-					'Something else has already changed this ROM, in a way this tool does not recognise. Please start over with an unmodified ROM.',
+					'Something else has already changed this ROM, in a way this tool does not recognize. Please start over with an unmodified ROM.',
 					'text-danger',
 				);
 			}

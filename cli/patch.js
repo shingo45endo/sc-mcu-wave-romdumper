@@ -7,7 +7,7 @@
 	  -o, --out     where to write the patched ROM (default: <rom>_patched.bin)
 	  --addr        RAM address to jump to, hex (default: H'8CD4, the drum set 2 area, which is the same on every model checked)
 	  --offset      ROM offset to patch, hex (default: detected)
-	  -n, --dry-run analyse only, write nothing
+	  -n, --dry-run analyze only, write nothing
 */
 
 import fs from 'node:fs';
@@ -181,7 +181,7 @@ try {
 	printUsageAndExit(`cannot read ${input}: ${e.message}`);
 }
 
-// Analyse the ROM, and stop here for a dry run.
+// Analyze the ROM, and stop here for a dry run.
 if (isDryRun) {
 	const info = analyzeRom(rom);
 	process.stdout.write(`${describeAnalysis(info)}\n`);

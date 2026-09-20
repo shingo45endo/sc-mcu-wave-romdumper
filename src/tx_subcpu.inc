@@ -20,7 +20,7 @@
 ;           hardware - it is a byte of the firmware's own RAM. That is why
 ;           it is named by the including file, rather than fixed here.
 ;
-;           Initialisation grants the token. Handing a batch over spends
+;           Initialization grants the token. Handing a batch over spends
 ;           it. The sub-CPU grants it again by raising bit 4 of the
 ;           notification byte a read of SMKICK returns; the firmware's
 ;           interrupt handler turns that back into this bit. So "set"
