@@ -22,6 +22,7 @@ import util from 'node:util';
 
 import {BulkDumpReceiver} from '../lib/bulk_dump.js';
 import {FileDumpReceiver} from '../lib/file_dump.js';
+import {getBulkDumpResult, getFileDumpResults} from '../lib/dump_result.js';
 import {loadCapture} from '../lib/sysex.js';
 
 const ROOT = path.join(path.dirname(url.fileURLToPath(import.meta.url)), '..');
@@ -135,14 +136,7 @@ function readFileDump() {
 	}
 	reportStreamProblems(rx.errors);
 
-	return rx.getResults().map((file) => ({
-		name: file.name,
-		size: file.size,
-		received: file.received,
-		packets: file.packets,
-		errors: file.errors,
-		bytes: file.bytes,
-	}));
+	return getFileDumpResults(rx);
 }
 
 // A bulk dump says everything about itself too, but only once it is back in the areas it was read out of.
@@ -171,25 +165,7 @@ function readBulkDump() {
 	}
 	process.stderr.write(`areas: ${best.set.names.join(', ')}\n`);
 
-	const passes = best.rx.getProperties();
-	const errors = [...best.rx.errors];
-	for (const pass of passes) {
-		for (const problem of pass.problems) {
-			errors.push(`pass ${pass.passNo}: ${problem}`);
-		}
-	}
-	for (const hole of best.result.holes) {
-		errors.push(`nothing covers ${hole.size} bytes at H'${hole.at.toString(16).toUpperCase()}`);
-	}
-
-	return [{
-		name: best.result.name,
-		size: best.result.size,
-		received: best.result.size - best.result.holes.reduce((total, hole) => (total + hole.size), 0),
-		packets: best.rx.packets,
-		errors,
-		bytes: best.result.bytes,
-	}];
+	return [getBulkDumpResult(best.rx)];
 }
 
 // Every distinct set of areas the published models read back, with the models that use it.
