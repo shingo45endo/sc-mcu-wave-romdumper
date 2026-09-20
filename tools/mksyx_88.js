@@ -142,6 +142,7 @@ function main() {
 	}
 
 	const written = [];
+	const loaderStems = [];
 	const made = new Set();
 	const models = {};
 	const configs = {};
@@ -175,7 +176,16 @@ function main() {
 
 		const passBytes = ((regions.reduce((total, one) => (total + one.size), 0) - HEADER_SIZE) / 8) * GROUP_BYTES;
 		console.assert(Number.isInteger(passBytes), 'the areas must hold the header and a whole number of groups');
-		const loader = [gsResetMessage(), ...buildBulkMessages(body, 0, {mapNo: MAP_NO, blockOrder: BLOCK_ORDER})];
+		// The dumper on its own, so the page can send it the way it sends the other family's: one file per part.
+		const dumperMessages = buildBulkMessages(body, 0, {mapNo: MAP_NO, blockOrder: BLOCK_ORDER});
+		const loader = [gsResetMessage(), ...dumperMessages];
+		const loaderStem = `01-dumper-${model.dumper}`;
+		if (!wanted && !made.has(loaderStem)) {
+			made.add(loaderStem);
+			fs.writeFileSync(path.join(outDir, `${loaderStem}.syx`), concatSysex(dumperMessages));
+			fs.writeFileSync(path.join(outDir, `${loaderStem}.mid`), writeSmf(dumperMessages, {name: loaderStem}));
+			loaderStems.push(loaderStem);
+		}
 		// Named by the layout and the dumper, not by the synth: two synths that need the same file get the same one.
 		const stems = chips.map((_, chipNo) => `dump-${model.config}-${model.dumper}-chip${chipNo}`);
 		for (const [chipNo, size] of chips.entries()) {
@@ -228,6 +238,7 @@ function main() {
 			config: model.config,
 			dumper: model.dumper,
 			isDumpTested: model.isDumpTested ?? false,
+			loader: ['00-gsreset.syx', `${loaderStem}.syx`],
 			readRegions: regions,
 			dump: files.map((file) => file.dump),
 			...(model.systemInfo) ? {systemInfo: model.systemInfo} : {},
@@ -243,6 +254,9 @@ function main() {
 	for (const one of written) {
 		process.stderr.write(`  ${one.stem.padEnd(28)} ${`${one.size / 1024 / 1024} MiB`.padStart(9)} ` +
 			`${String(one.passes).padStart(7)} ${String(one.bytes).padStart(7)}  ${formatDuration(one.seconds)}\n`);
+	}
+	for (const stem of loaderStems) {
+		process.stderr.write(`  ${stem.padEnd(28)} the dumper on its own\n`);
 	}
 	process.stderr.write(`\nwritten to ${path.relative(ROOT, outDir)}/  (.syx and .mid of each)\n`);
 
