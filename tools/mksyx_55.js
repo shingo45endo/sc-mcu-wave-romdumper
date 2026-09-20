@@ -18,8 +18,9 @@ import url from 'node:url';
 import util from 'node:util';
 
 import {formatDuration, toHex} from '../lib/format.js';
+import {gsResetMessage, triggerMessage} from '../lib/gs_message.js';
 
-import {buildBulkMessages, gsResetMessage, triggerMessage} from './bulk_load.js';
+import {buildBulkMessages} from './bulk_load.js';
 import {parseTable, estimateDumpTime, SOURCE_NAMES} from './file_table_55.js';
 import {writeSmf, concatSysex} from './smf_write.js';
 

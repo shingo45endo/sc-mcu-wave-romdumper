@@ -25,7 +25,8 @@ import util from 'node:util';
 import {formatDuration} from '../lib/format.js';
 import {CHIP_SELECT_SIZE, planPasses, toRequestBytes} from '../lib/wave_plan_88.js';
 import {buildFileHeader, buildPassHeader, HEADER_SIZE} from '../lib/bulk_dump.js';
-import {buildBulkMessages, buildRequestMessage, buildWriteMessage, gsResetMessage, triggerMessage} from './bulk_load.js';
+import {buildRequestMessage, buildWriteMessage, gsResetMessage, triggerMessage} from '../lib/gs_message.js';
+import {buildBulkMessages} from './bulk_load.js';
 import {writeSmf} from './smf_write.js';
 
 const ROOT = path.join(path.dirname(url.fileURLToPath(import.meta.url)), '..');
