@@ -23,6 +23,7 @@ import {gsResetMessage, triggerMessage} from '../lib/gs_message.js';
 import {buildBulkMessages} from './bulk_load.js';
 import {parseTable, estimateDumpTime, SOURCE_NAMES} from './file_table_55.js';
 import {writeSmf, concatSysex} from './smf_write.js';
+import {checkSystemInfo} from './system_info.js';
 
 const ROOT = path.join(path.dirname(url.fileURLToPath(import.meta.url)), '..');
 
@@ -235,8 +236,8 @@ function main() {
 	// Only models whose dumper and table were both built are offered.
 	const models = {};
 	const pairs = new Map();
-	// Which layout each system information block has already been claimed by, so the check below can see across models.
-	const configByBlock = new Map();
+	// Which layout each system information block has already been claimed by, so the check can see across models.
+	const claimedBlocks = new Map();
 	for (const [key, model] of Object.entries(catalogue.models ?? {})) {
 		if ((model.family ?? FAMILY) !== FAMILY) {
 			continue;	// another family, another generator
@@ -263,28 +264,7 @@ function main() {
 			dump: `dump-${model.config}-${kind}.syx`,
 		};
 		if (model.systemInfo) {
-			// The catalogue holds the 32 bytes, written either as the 32 characters or as 64 hex digits.
-			// An editor that trims the trailing spaces off the readable form would silently break every match,
-			// so it is worth stopping the build over.
-			for (const entry of model.systemInfo) {
-				const isHexEncoded = ((entry.length === 64) && (/^[0-9a-fA-F]{64}$/u).test(entry));
-				if (!isHexEncoded && entry.length !== 32) {
-					throw new Error(`${key}: systemInfo ${JSON.stringify(entry)} is ${entry.length} characters, ` +
-						'not the 32 bytes the synth returns (or 64 hex digits)');
-				}
-				// One block, one layout. The page names the synth from these 32 bytes and then dumps what that
-				// layout needs, so a block two layouts both claim would quietly have one of them picked for it.
-				// Two models sharing a block is fine - the SC-55 and the SC-155 do - as long as they agree here.
-				// Both spellings of the same bytes have to land on the same key, so the hex form is decoded first.
-				const block = (isHexEncoded) ? entry.replace(/../gu, (pair) => String.fromCharCode(parseInt(pair, 16))) : entry;
-				const owner = configByBlock.get(block);
-				if (owner && owner.config !== model.config) {
-					throw new Error(`${key}: systemInfo ${JSON.stringify(entry)} is also ${owner.key}'s, ` +
-						`but ${key} is ${model.config} and ${owner.key} is ${owner.config}. ` +
-						'One block cannot name two wave ROM layouts');
-				}
-				configByBlock.set(block, {key, config: model.config});
-			}
+			checkSystemInfo(key, model.systemInfo, model.config, claimedBlocks);
 			models[key].systemInfo = model.systemInfo;
 		}
 	}

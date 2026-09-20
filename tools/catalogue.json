@@ -31,7 +31,16 @@
 		"wave-2m2m2m2m": {
 			"note": "2 MiB in each of four chip selects, read through the tone generator",
 			"chips": [2097152, 2097152, 2097152, 2097152],
+			"chipSelectSize": 2097152,
+			"bankBits": 1,
 			"isLayoutConfirmed": true
+		},
+		"wave-4m4m4m4m4m": {
+			"note": "4 MiB in each of five chip selects, read through the tone generator. The chip select encoding and the scrambling are not confirmed",
+			"chips": [4194304, 4194304, 4194304, 4194304, 4194304],
+			"chipSelectSize": 4194304,
+			"bankBits": 2,
+			"isLayoutConfirmed": false
 		}
 	},
 	"models": {
@@ -142,8 +151,8 @@
 				{"addr": "29 10 00", "size": 1424}
 			],
 			"systemInfo": [
-				"47532d3634205645523d332e3030202053432d38382020202020202020202020",
-				"47532d3634205645523d332e3030202053432d383820424f4152442020202020"
+				"GS-64 VER=3.00  SC-88           ",
+				"GS-64 VER=3.00  SC-88 BOARD     "
 			]
 		},
 		"sc-88vl": {
@@ -151,6 +160,23 @@
 			"family": "88",
 			"config": "wave-2m2m2m2m",
 			"dumper": "sc88",
+			"isDumpTested": true,
+			"readRegions": [
+				{"addr": "28 00 00", "size": 1408},
+				{"addr": "28 10 00", "size": 1408},
+				{"addr": "29 00 00", "size": 1424},
+				{"addr": "29 10 00", "size": 1424}
+			],
+			"systemInfo": [
+				"GS-64 VER=3.00  SC-88VL         ",
+				"GS-64 VER=3.00  SC-88VL BOARD   "
+			]
+		},
+		"sc-88pro": {
+			"label": "Roland SC-88Pro",
+			"family": "88",
+			"config": "wave-4m4m4m4m4m",
+			"dumper": "sc88pro",
 			"isDumpTested": false,
 			"readRegions": [
 				{"addr": "28 00 00", "size": 1408},
@@ -159,8 +185,9 @@
 				{"addr": "29 10 00", "size": 1424}
 			],
 			"systemInfo": [
-				"47532d3634205645523d332e3030202053432d3838564c202020202020202020",
-				"47532d3634205645523d332e3030202053432d3838564c20424f415244202020"
+				"GS-64 VER=3.00  SC-88Pro        ",
+				"GS-64 VER=3.00  SC-88ProVL      ",
+				"GS-64 VER=3.00  SC-88ProVL BOARD"
 			]
 		}
 	}
