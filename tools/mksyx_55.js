@@ -26,6 +26,8 @@ import {writeSmf, concatSysex} from './smf_write.js';
 const ROOT = path.join(path.dirname(url.fileURLToPath(import.meta.url)), '..');
 
 const DEFAULT_DUMPER = 'maincpu532';
+const FAMILY = '55';
+const BLOCK_ORDER = 'sc55';
 
 // What each dumper is named for. The two main CPU ones run the same code and differ only in where their CPU keeps
 // the SCI registers, so the name has to say which CPU rather than just "main CPU".
@@ -181,14 +183,14 @@ function main() {
 		}
 	}
 	const bodyMessages = writeSyxAndMid(
-		'01-body', buildBulkMessages(body, 0),
+		'01-body', buildBulkMessages(body, 0, {blockOrder: BLOCK_ORDER}),
 		formatSmfTitle(1, 'body'),
 	);
 	const loaders = {};
 	for (const kind of dumpers) {
 		loaders[kind] = [...bodyMessages, ...writeSyxAndMid(
 			`02-tx-${kind}`,
-			buildBulkMessages(bodies[kind].slice(txOfs), txOfs),
+			buildBulkMessages(bodies[kind].slice(txOfs), txOfs, {blockOrder: BLOCK_ORDER}),
 			formatSmfTitle(2, `transmit module, ${getCpuLabel(kind)}`),
 		)];
 	}
@@ -207,7 +209,7 @@ function main() {
 
 		tableMessages[name] = writeSyxAndMid(
 			`03-${name}`,
-			buildBulkMessages(bytes, tableOfs),
+			buildBulkMessages(bytes, tableOfs, {blockOrder: BLOCK_ORDER}),
 			formatSmfTitle(3, `file table ${name}, ${files.length} file(s) (${formatDuration(seconds)})`),
 		);
 
@@ -234,6 +236,9 @@ function main() {
 	// Which layout each system information block has already been claimed by, so the check below can see across models.
 	const configByBlock = new Map();
 	for (const [key, model] of Object.entries(catalogue.models ?? {})) {
+		if ((model.family ?? FAMILY) !== FAMILY) {
+			continue;	// another family, another generator
+		}
 		const kind = model.dumper ?? DEFAULT_DUMPER;
 		if (!configs[model.config]) {
 			process.stderr.write(`mksyx: ${key} wants config ${model.config}, which was not built - skipping\n`);
@@ -317,18 +322,6 @@ function main() {
 		`${JSON.stringify({configs, models}, null, '\t')}\n`,
 	);
 
-	// Remove anything left over from an earlier build.
-	// Drop anything left from an earlier build. Dropping a dumper or a layout would otherwise leave its files behind,
-	// and a stale 02-tx-*.syx that no model asks for any more is worse than confusing: someone could still find it and
-	// play it.
-	const keepFiles = new Set(writtenFiles.flatMap(([stem]) => [`${stem}.syx`, `${stem}.mid`]));
-	keepFiles.add('models.json');
-	for (const file of fs.readdirSync(outDir)) {
-		if ((file.endsWith('.syx') || file.endsWith('.mid')) && !keepFiles.has(file)) {
-			fs.unlinkSync(path.join(outDir, file));
-			process.stderr.write(`mksyx: removed stale ${file}\n`);
-		}
-	}
 	writtenFiles.push(['models.json', Object.keys(models).length, fs.readFileSync(path.join(outDir, 'models.json')).length]);
 
 	// Print the build summary. Every column is measured from what is about to be printed, so a longer dumper, layout or

@@ -27,6 +27,11 @@
 		"wave-2m2m": {
 			"note": "2 MiB in each of the first two slots, and no MCU internal ROM",
 			"isLayoutConfirmed": false
+		},
+		"wave-2m2m2m2m": {
+			"note": "2 MiB in each of four chip selects, read through the tone generator",
+			"chips": [2097152, 2097152, 2097152, 2097152],
+			"isLayoutConfirmed": true
 		}
 	},
 	"models": {
@@ -122,6 +127,40 @@
 			"isDumpTested": false,
 			"systemInfo": [
 				"GS-28 VER=2.00  IW-GS           "
+			]
+		},
+		"sc-88": {
+			"label": "Roland SC-88",
+			"family": "88",
+			"config": "wave-2m2m2m2m",
+			"dumper": "sc88",
+			"isDumpTested": false,
+			"readRegions": [
+				{"addr": "28 00 00", "size": 1408},
+				{"addr": "28 10 00", "size": 1408},
+				{"addr": "29 00 00", "size": 1424},
+				{"addr": "29 10 00", "size": 1424}
+			],
+			"systemInfo": [
+				"47532d3634205645523d332e3030202053432d38382020202020202020202020",
+				"47532d3634205645523d332e3030202053432d383820424f4152442020202020"
+			]
+		},
+		"sc-88vl": {
+			"label": "Roland SC-88VL",
+			"family": "88",
+			"config": "wave-2m2m2m2m",
+			"dumper": "sc88",
+			"isDumpTested": false,
+			"readRegions": [
+				{"addr": "28 00 00", "size": 1408},
+				{"addr": "28 10 00", "size": 1408},
+				{"addr": "29 00 00", "size": 1424},
+				{"addr": "29 10 00", "size": 1424}
+			],
+			"systemInfo": [
+				"47532d3634205645523d332e3030202053432d3838564c202020202020202020",
+				"47532d3634205645523d332e3030202053432d3838564c20424f415244202020"
 			]
 		}
 	}
