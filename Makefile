@@ -2,7 +2,7 @@
 #
 #   src/*.asm  --asl-->  build/*.p  --p2bin-->  build/*.bin  --mksyx-->  syx/*
 #
-# src/dumper_*.asm are the payloads (body plus one transmit module each).
+# src/dumper_*.asm are the dumpers (body plus one transmit module each).
 # src/[mcu-]wave-*.asm and src/probe.asm are the file tables. The name says
 # what a table dumps, so the mcu- ones start with the MCU internal ROM.
 #
@@ -21,7 +21,7 @@ NODE      ?= node
 
 CPU        = HD6475328
 ASFLAGS    = -cpu $(CPU) -i src -q
-# p2bin defaults to the range 0-$7fff and the payload lives at H'8CD4, so
+# p2bin defaults to the range 0-$7fff and the dumper lives at H'8CD4, so
 # without -r the output would be empty.  '$-$' means "whatever was used".
 P2BINFLAGS = -r '$$-$$' -l 0
 

@@ -1,5 +1,5 @@
 ;==========================================================================
-; sc-mcu-wave-romdumper - payload for H8/510 models whose main CPU puts the bytes on MIDI Out itself
+; sc-mcu-wave-romdumper - dumper for H8/510 models whose main CPU puts the bytes on MIDI Out itself
 ;
 ; Models:
 ;   RA-30, XP-10, PMA-5

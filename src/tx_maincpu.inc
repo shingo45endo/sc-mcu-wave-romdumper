@@ -4,7 +4,7 @@
 ; What every model uses whose MIDI Out is on the CPU's own serial port. Sending a byte is one write to TDR, once TDRE
 ; says the shift register is free.
 ;
-; The two registers are NOT at the same addresses on every CPU in this family, so the payload names them:
+; The two registers are NOT at the same addresses on every CPU in this family, so the dumper names them:
 ;
 ;	H8/532	SSR H'FFDC  TDR H'FFDB
 ;	H8/510	SSR H'FECC  TDR H'FECB   (its SCI channel 0; channel 1 never transmits)
@@ -17,12 +17,12 @@
 ; because the table has to start at the top of the first module.
 ;==========================================================================
 
-; Poll the wrong address and the loop below never ends, so stop the build instead of shipping a payload that hangs.
+; Poll the wrong address and the loop below never ends, so stop the build instead of shipping a dumper that hangs.
 		ifndef	SSR
-		 fatal	"the payload has to define SSR - it is not at the same address on the H8/532 and the H8/510"
+		 fatal	"the dumper has to define SSR - it is not at the same address on the H8/532 and the H8/510"
 		endif
 		ifndef	TDR
-		 fatal	"the payload has to define TDR - it is not at the same address on the H8/532 and the H8/510"
+		 fatal	"the dumper has to define TDR - it is not at the same address on the H8/532 and the H8/510"
 		endif
 
 txopen:		BRA	sciopen

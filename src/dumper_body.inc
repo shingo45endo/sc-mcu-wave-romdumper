@@ -1,5 +1,5 @@
 ;==========================================================================
-; sc-mcu-wave-romdumper - RAM resident payload, the part every model shares
+; sc-mcu-wave-romdumper - RAM resident dumper, the part every model shares
 ;
 ; Loaded into spare RAM (the drum set 2 parameter area) with GS bulk dump SysEx. Then entered with PJSR,
 ; from a small per-model hook in the external firmware ROM. One call dumps every file in the separately loaded table -
@@ -79,7 +79,7 @@ MAGIC		equ	$C0DA		; at LOADADDR+2; "coda" - the jump-here mark
 ; entry: hand the machine to the transmit module, find ourselves,
 ;	 then walk the file table
 ;--------------------------------------------------------------------------
-; The first four bytes are a signature, so a ROM hook can tell whether the payload has actually been loaded before it
+; The first four bytes are a signature, so a ROM hook can tell whether the dumper has actually been loaded before it
 ; jumps in here. Both magic bytes are >= H'80, which a drum parameter written through the normal 41 xx xx path can
 ; never be - those are clamped to 0..127.
 entry:		BRA	start				; The hook lands here,

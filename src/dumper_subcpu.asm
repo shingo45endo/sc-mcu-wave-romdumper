@@ -1,5 +1,5 @@
 ;==========================================================================
-; sc-mcu-wave-romdumper - payload for the SC-55mkII family, whose sub-CPU puts the bytes on MIDI Out
+; sc-mcu-wave-romdumper - dumper for the SC-55mkII family, whose sub-CPU puts the bytes on MIDI Out
 ;
 ; Models:
 ;   SC-55mkII, SC-55ST, SC-55K

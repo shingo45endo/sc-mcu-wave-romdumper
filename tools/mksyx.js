@@ -25,9 +25,9 @@ import {writeSmf, concatSysex} from './smf_write.js';
 
 const ROOT = path.join(path.dirname(url.fileURLToPath(import.meta.url)), '..');
 
-const DEFAULT_PAYLOAD = 'maincpu532';
+const DEFAULT_DUMPER = 'maincpu532';
 
-// What each payload is named for. The two main CPU ones run the same code and differ only in where their CPU keeps
+// What each dumper is named for. The two main CPU ones run the same code and differ only in where their CPU keeps
 // the SCI registers, so the name has to say which CPU rather than just "main CPU".
 const CPU_LABELS = {
 	maincpu532: 'main CPU (H8/532)',
@@ -120,20 +120,20 @@ function main() {
 
 	const catalogue = JSON.parse(fs.readFileSync(path.join(srcDir, 'catalogue.json'), 'utf8'));
 
-	// Discover the payloads the assembler built, and read each one in.
-	const payloads = fs.readdirSync(binDir).
+	// Discover the dumpers the assembler built, and read each one in.
+	const dumpers = fs.readdirSync(binDir).
 		filter((f) => (/^dumper_.+[.]bin$/u).test(f)).
 		map((f) => f.slice('dumper_'.length, -'.bin'.length)).
 		sort();
-	if (!payloads.length) {
+	if (!dumpers.length) {
 		process.stderr.write(`mksyx: no dumper_*.bin in ${binDir} - run "make" first (it needs asl and p2bin)\n`);
 		process.exit(1);
 	}
 	const bodies = {};
-	for (const kind of payloads) {
+	for (const kind of dumpers) {
 		const body = new Uint8Array(fs.readFileSync(path.join(binDir, `dumper_${kind}.bin`)));
 		if (body.length > tableOfs) {
-			throw new Error(`payload ${kind} is ${body.length} bytes, past TABLEOFS ${tableOfs}`);
+			throw new Error(`dumper ${kind} is ${body.length} bytes, past TABLEOFS ${tableOfs}`);
 		}
 		bodies[kind] = body;
 	}
@@ -164,19 +164,19 @@ function main() {
 		formatSmfTitle(0, 'GS reset'),
 	);
 
-	// Write the shared body, then each payload's own transmit module and the trigger.
-	// The body is the same in every payload, byte for byte. (That is what the branches at the top of a transmit module are for.)
+	// Write the shared body, then each dumper's own transmit module and the trigger.
+	// The body is the same in every dumper, byte for byte. (That is what the branches at the top of a transmit module are for.)
 	// So it goes out once, and each module follows on its own - both start on a bulk dump block boundary,
 	// so this is only a matter of where the messages are addressed.
 	//
 	// Sending them apart is what lets someone work out an unsupported model: try the other transmit module,
 	// or another file table, without resending anything else.
-	const [firstKind] = payloads;
+	const [firstKind] = dumpers;
 	const body = bodies[firstKind].slice(0, txOfs);
-	for (const kind of payloads) {
+	for (const kind of dumpers) {
 		const also = bodies[kind].slice(0, txOfs);
 		if (also.length !== body.length || also.some((e, i) => (e !== body[i]))) {
-			throw new Error(`payload ${kind} has a different body from ${firstKind}: ` +
+			throw new Error(`dumper ${kind} has a different body from ${firstKind}: ` +
 				'the transmit modules are meant to be the only difference');
 		}
 	}
@@ -185,7 +185,7 @@ function main() {
 		formatSmfTitle(1, 'body'),
 	);
 	const loaders = {};
-	for (const kind of payloads) {
+	for (const kind of dumpers) {
 		loaders[kind] = [...bodyMessages, ...writeSyxAndMid(
 			`02-tx-${kind}`,
 			buildBulkMessages(bodies[kind].slice(txOfs), txOfs),
@@ -228,19 +228,19 @@ function main() {
 	}
 
 	// Build the model index for models.json.
-	// Only models whose payload and table were both built are offered.
+	// Only models whose dumper and table were both built are offered.
 	const models = {};
 	const pairs = new Map();
 	// Which layout each system information block has already been claimed by, so the check below can see across models.
 	const configByBlock = new Map();
 	for (const [key, model] of Object.entries(catalogue.models ?? {})) {
-		const kind = model.dumper ?? DEFAULT_PAYLOAD;
+		const kind = model.dumper ?? DEFAULT_DUMPER;
 		if (!configs[model.config]) {
 			process.stderr.write(`mksyx: ${key} wants config ${model.config}, which was not built - skipping\n`);
 			continue;
 		}
 		if (!loaders[kind]) {
-			process.stderr.write(`mksyx: ${key} wants payload ${kind}, which was not built - skipping\n`);
+			process.stderr.write(`mksyx: ${key} wants dumper ${kind}, which was not built - skipping\n`);
 			continue;
 		}
 		pairs.set(`${kind}/${model.config}`, [kind, model.config]);
@@ -281,15 +281,15 @@ function main() {
 		}
 	}
 
-	// The probe is not a model's table, so nothing above pairs it with a payload. Give it one of each,
+	// The probe is not a model's table, so nothing above pairs it with a dumper. Give it one of each,
 	// so it can be played at any synth.
-	for (const kind of payloads) {
+	for (const kind of dumpers) {
 		if (configs.probe) {
 			pairs.set(`${kind}/probe`, [kind, 'probe']);
 		}
 	}
 
-	// Write one combined dump file per (payload, table) pair in use.
+	// Write one combined dump file per (dumper, table) pair in use.
 	// One combined file per pair in use: loader, table and trigger back to back, for playing straight at the synth.
 	for (const [kind, name] of pairs.values()) {
 		const allMessages = [...resetMessages, ...loaders[kind], ...tableMessages[name], ...triggerMessages];
@@ -318,7 +318,7 @@ function main() {
 	);
 
 	// Remove anything left over from an earlier build.
-	// Drop anything left from an earlier build. Dropping a payload or a layout would otherwise leave its files behind,
+	// Drop anything left from an earlier build. Dropping a dumper or a layout would otherwise leave its files behind,
 	// and a stale 02-tx-*.syx that no model asks for any more is worse than confusing: someone could still find it and
 	// play it.
 	const keepFiles = new Set(writtenFiles.flatMap(([stem]) => [`${stem}.syx`, `${stem}.mid`]));
@@ -331,13 +331,13 @@ function main() {
 	}
 	writtenFiles.push(['models.json', Object.keys(models).length, fs.readFileSync(path.join(outDir, 'models.json')).length]);
 
-	// Print the build summary. Every column is measured from what is about to be printed, so a longer payload, layout or
+	// Print the build summary. Every column is measured from what is about to be printed, so a longer dumper, layout or
 	// file name widens its column instead of pushing everything after it out of line.
 	process.stderr.write(`loads at H'${toHex(loadAddr)}, table at +H'${toHex(tableOfs)}\n`);
-	const kindWidth = Math.max(...payloads.map((kind) => kind.length)) + 1;
-	for (const kind of payloads) {
+	const kindWidth = Math.max(...dumpers.map((kind) => kind.length)) + 1;
+	for (const kind of dumpers) {
 		const users = Object.entries(models).filter(([, model]) => (model.dumper === kind)).map(([k]) => k);
-		process.stderr.write(`  payload ${kind.padEnd(kindWidth)}${String(bodies[kind].length).padStart(4)}` +
+		process.stderr.write(`  dumper ${kind.padEnd(kindWidth)}${String(bodies[kind].length).padStart(4)}` +
 			` bytes   ${(users.length) ? users.join(', ') : '(no synth uses it)'}\n`);
 	}
 	const nameWidth = Math.max(...tables.map((name) => name.length)) + 1;

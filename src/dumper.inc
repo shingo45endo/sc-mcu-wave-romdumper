@@ -59,7 +59,7 @@ IOEND		macro
 ;          of 112; the receiver truncates using the length in the header.
 ;   name   file name sent in the file dump header, in quotes
 ;
-; The first eight bytes deliberately match the payload's variable block, so starting a file is a straight 8-byte copy.
+; The first eight bytes deliberately match the dumper's variable block, so starting a file is a straight 8-byte copy.
 ; The zero at +5 lands on the packet number, which is what restarts numbering for each file.
 ;--------------------------------------------------------------------------
 FILE		macro	src,addr,len,name

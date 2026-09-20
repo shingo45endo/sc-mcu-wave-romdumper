@@ -7,7 +7,7 @@
 ; time.
 ;
 ; That routine lives in the MCU's internal ROM, which the patcher never sees. It is short, and every address in it is
-; fixed. So it is copied here instead, instruction for instruction - the payload still holds no firmware address,
+; fixed. So it is copied here instead, instruction for instruction - the dumper still holds no firmware address,
 ; which is the whole point of the body.
 ;
 ; Do not assume from a machine's shared RAM window that its MIDI goes through it. The SD-35 has the same window,
