@@ -22,7 +22,7 @@
 ;
 ; A word comes back with its two bytes the other way round, so the low half is the earlier ROM byte.
 ;
-; What the dumper file has to define:
+; What each dumper has to define:
 ;
 ;   LOADADDR  where the host loads this
 ;   RAMPAGE   the page LOADADDR and BUF are in

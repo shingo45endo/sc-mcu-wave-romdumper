@@ -47,7 +47,7 @@ const WHOLE_AREA = 0x2000;
 // What each message has to be followed by. The last request of a pass waits for the synth's whole answer; the others
 // are queued behind it, which is what makes a pass take one wait rather than four.
 const GAP_REQUEST_MS = 20;
-const GAP_TRIGGER_MS = 150;		// the dumper runs for about 110
+const GAP_TRIGGER_MS = 150;		// long enough for the dumper to finish
 const GAP_READ_MS = 0;
 const GAP_ANSWER_MS = 4500;		// measured at about 4100 for four areas
 
@@ -156,9 +156,9 @@ function main() {
 			process.stderr.write(`mksyx_88: ${key} wants dumper ${model.dumper}, which was not built - skipping\n`);
 			continue;
 		}
-		const dumper = new Uint8Array(fs.readFileSync(binPath));
-		if (dumper.length > ARG_OFFSET) {
-			throw new Error(`${model.dumper} is ${dumper.length} bytes, which runs into the request at ` +
+		const body = new Uint8Array(fs.readFileSync(binPath));
+		if (body.length > ARG_OFFSET) {
+			throw new Error(`${model.dumper} is ${body.length} bytes, which runs into the request at ` +
 				`H'${ARG_OFFSET.toString(16).toUpperCase()}`);
 		}
 		const chips = catalogue.configs?.[model.config]?.chips;
@@ -174,7 +174,7 @@ function main() {
 
 		const passBytes = ((regions.reduce((total, one) => (total + one.size), 0) - HEADER_SIZE) / 8) * GROUP_BYTES;
 		console.assert(Number.isInteger(passBytes), 'the areas must hold the header and a whole number of groups');
-		const loader = [gsResetMessage(), ...buildBulkMessages(dumper, 0, {mapNo: MAP_NO, blockOrder: BLOCK_ORDER})];
+		const loader = [gsResetMessage(), ...buildBulkMessages(body, 0, {mapNo: MAP_NO, blockOrder: BLOCK_ORDER})];
 		// Named by the layout and the dumper, not by the synth: two synths that need the same file get the same one.
 		const stems = chips.map((_, chipNo) => `dump-${model.config}-${model.dumper}-chip${chipNo}`);
 		for (const [chipNo, size] of chips.entries()) {
