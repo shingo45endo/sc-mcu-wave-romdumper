@@ -4,7 +4,7 @@
 
 	Input is what the assembler produced in build/, plus the model catalogue in tools/catalogue.json. Output is syx/.
 
-	    node tools/mksyx_55.js [--bin build] [--src src/55] [--out syx]
+	    node tools/mksyx_55.js [--bin build/55] [--src src/55] [--out syx]
 
 	  --bin         where the assembler output is (default: build)
 	  --src         where dumper.inc is (default: src/55)
@@ -72,7 +72,7 @@ function printUsageAndExit(message) {
 		process.stderr.write(`mksyx: ${message}\n\n`);
 	}
 
-	process.stderr.write('usage: node tools/mksyx_55.js [--bin build] [--src src/55] [--out syx]\n' +
+	process.stderr.write('usage: node tools/mksyx_55.js [--bin build/55] [--src src/55] [--out syx]\n' +
 		'  --bin   where the assembler output is\n' +
 		'  --src   where dumper.inc is\n' +
 		'  --out   where to write the .syx and .mid files\n');
@@ -88,7 +88,7 @@ function main() {
 			args: process.argv.slice(2),
 			options: {
 				help: {type: 'boolean', short: 'h'},
-				bin: {type: 'string', default: 'build'},
+				bin: {type: 'string', default: 'build/55'},
 				src: {type: 'string', default: 'src/55'},
 				out: {type: 'string', default: 'syx'},
 			},

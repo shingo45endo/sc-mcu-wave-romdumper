@@ -1,10 +1,13 @@
 # sc-mcu-wave-romdumper
 #
-#   src/55/*.asm  --asl-->  build/*.p  --p2bin-->  build/*.bin  --mksyx-->  syx/*
+#   src/NN/*.asm  --asl-->  build/NN/*.p  --p2bin-->  build/NN/*.bin  --mksyx-->  syx/*
 #
-# src/55 holds the dumpers for the synths that put the dump on MIDI Out
-# themselves, as a MIDI File Dump. That is a way of working, not a model
-# number: the RA-30, XP-10 and PMA-5 are in there too.
+# The two directories are ways of working, not model numbers.
+#
+#   src/55  the synth puts the dump on MIDI Out itself, as a MIDI File Dump.
+#           The RA-30, XP-10 and PMA-5 are in here too
+#   src/88  the dumper leaves the dump in RAM and the host reads it back
+#           with bulk dump requests
 #
 # src/55/dumper_*.asm are the dumpers (body plus one transmit module each).
 # src/55/[mcu-]wave-*.asm and src/55/probe.asm are the file tables. The name
@@ -24,26 +27,31 @@ P2BIN     ?= p2bin
 NODE      ?= node
 
 CPU        = HD6475328
-ASFLAGS    = -cpu $(CPU) -i src/55 -q
+ASFLAGS    = -cpu $(CPU) -q
 # p2bin defaults to the range 0-$7fff and the dumper lives at H'8CD4, so
 # without -r the output would be empty.  '$-$' means "whatever was used".
 P2BINFLAGS = -r '$$-$$' -l 0
 
-SRC   := $(wildcard src/55/dumper_*.asm) $(wildcard src/55/*wave-*.asm) src/55/probe.asm
-INC   := $(wildcard src/55/*.inc)
-BIN   := $(patsubst src/55/%.asm,build/%.bin,$(SRC))
+SRC55 := $(wildcard src/55/dumper_*.asm) $(wildcard src/55/*wave-*.asm) src/55/probe.asm
+SRC88 := $(wildcard src/88/dumper_*.asm)
+INC55 := $(wildcard src/55/*.inc)
+INC88 := $(wildcard src/88/*.inc)
+BIN   := $(patsubst src/55/%.asm,build/55/%.bin,$(SRC55)) $(patsubst src/88/%.asm,build/88/%.bin,$(SRC88))
 STAMP := syx/models.json
 
 .PHONY: all check check-tools clean distclean
-.PRECIOUS: build/%.p
+.PRECIOUS: build/55/%.p build/88/%.p
 
 all: $(STAMP)
 
-build:
-	@mkdir -p build
+build/55 build/88:
+	@mkdir -p $@
 
-build/%.p: src/55/%.asm $(INC) | build
-	$(ASL) $(ASFLAGS) -o $@ $<
+build/55/%.p: src/55/%.asm $(INC55) | build/55
+	$(ASL) $(ASFLAGS) -i src/55 -o $@ $<
+
+build/88/%.p: src/88/%.asm $(INC88) | build/88
+	$(ASL) $(ASFLAGS) -i src/88 -o $@ $<
 
 build/%.bin: build/%.p
 	$(P2BIN) $< $@ $(P2BINFLAGS)
