@@ -58,13 +58,13 @@ XPBANKHI	equ	$3922		; chip select and address bit 20
 XPWINDOW	equ	$3C00		; 1 KB window, address bits 9-0
 WINSIZE		equ	$0400
 
-; The host leaves the request in DRUM MAP NAME, the drum map's last field, as the SC-55 dumper does.
+; The host leaves the request in Drum Map Name, the drum map's last field, as the SC-55 dumper does.
 ARGOFS		equ	$380
 ARGLEN		equ	12
 REQ		equ	LOADADDR+ARGOFS	; the request, four words
 
 		if	8>ARGLEN
-		 fatal	"the request does not fit in DRUM MAP NAME"
+		 fatal	"the request does not fit in Drum Map Name"
 		endif
 
 ;--------------------------------------------------------------------------
