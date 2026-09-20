@@ -27,10 +27,6 @@
 			gap: 3px;
 			vertical-align: middle;
 		}
-		.my-romfig .my-rf-gap {
-			width: .3rem;
-			flex: none;
-		}
 		.my-romfig .my-rf-mcu,
 		.my-romfig .my-rf-slot {
 			height: 1.05rem;
@@ -335,7 +331,7 @@
 				return `<span class="my-rf-slot" title="Wave ROM, ${sizeText} at ${addr}"><i style="width: ${Math.round((size / SLOT_BYTES) * 100)}%;">${sizeText}</i></span>`;
 			}).join('');
 
-			return `<span class="my-romfig" role="img" aria-label="${sizeTexts.join(', ')}">${square}<span class="my-rf-gap"></span>${boxes}</span>`;
+			return `<span class="my-romfig" role="img" aria-label="${sizeTexts.join(', ')}">${square}${boxes}</span>`;
 		}
 
 		function getCurrentModel() {
