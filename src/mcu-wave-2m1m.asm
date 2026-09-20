@@ -2,7 +2,7 @@
 ; File table - 2 MiB in the first slot, 1 MiB in the second
 ;
 ; Models:
-;   - Roland SC-55mkII, SC-55ST
+;   - Roland SC-55mkII, SC-55ST/K
 ;
 ;   asl -cpu HD6475328 -i src -o build/mcu-wave-2m1m.p src/mcu-wave-2m1m.asm
 ;==========================================================================

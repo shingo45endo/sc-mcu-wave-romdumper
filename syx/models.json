@@ -305,7 +305,7 @@
 			]
 		},
 		"sc-55mk2": {
-			"label": "Roland SC-55mkII, SC-55ST",
+			"label": "Roland SC-55mkII, SC-55ST/K",
 			"config": "mcu-wave-2m1m",
 			"dumper": "subcpu",
 			"isDumpTested": true,

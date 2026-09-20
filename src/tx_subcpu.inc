@@ -36,7 +36,7 @@
 ;   SMSEM   bit 7 is the window's semaphore
 ;   SMKICK  a write here interrupts the sub-CPU
 ;
-; Everything but TXGATE is the same across the SC-55mkII, SC-55ST and SC-55K ROMs, which is every model known to
+; Everything but TXGATE is the same across the SC-55mkII and SC-55ST/K ROMs, which is every model known to
 ; transmit this way.
 ;
 ; Interrupts must stay ENABLED for the whole dump - the handler that sets TXGATE is an interrupt.
