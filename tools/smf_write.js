@@ -4,8 +4,8 @@ const DEFAULT_GAP_MS = 250;
 
 // A format 0 file with one SysEx event per message. The division is 1000 ticks per quarter note and the tempo one
 // second per quarter, so a tick is exactly a millisecond, and the delta before each message is the previous message's
-// own time on the wire plus `gapMs` - which makes `gapMs` a real pause, whatever the player's idea of tempo.
-export function writeSmf(messages, {gapMs = DEFAULT_GAP_MS, name = 'sc-mcu-wave-romdumper'} = {}) {
+// own time on the wire plus its gap - which makes the gap a real pause, whatever the player's idea of tempo.
+export function writeSmf(messages, {gapMs = DEFAULT_GAP_MS, name = ''} = {}) {
 	console.assert(gapMs >= 0, 'the gap between messages cannot be negative');
 	const eventBytes = [];
 	const push = (...b) => eventBytes.push(...b);
@@ -17,11 +17,14 @@ export function writeSmf(messages, {gapMs = DEFAULT_GAP_MS, name = 'sc-mcu-wave-
 
 	push(...toVlq(0), 0xff, 0x03, ...toVlq(nameBytes.length), ...nameBytes);
 	push(...toVlq(0), 0xff, 0x51, 0x03, 0x0f, 0x42, 0x40);       // 1 000 000 us
-	let prev = 0;
-	for (const message of messages) {
-		push(...toVlq((prev) ? calcTransferMs(prev) + gapMs : 0));
-		prev = message.length;
-		push(0xf0, ...toVlq(message.length - 1), ...message.slice(1));
+	let prev = null;
+	for (const entry of messages) {
+		const bytes = entry.bytes ?? entry;
+		const wait = entry.gapMs ?? gapMs;
+		console.assert(wait >= 0, 'the gap after a message cannot be negative');
+		push(...toVlq((prev) ? calcTransferMs(prev.size) + prev.gapMs : 0));
+		prev = {size: bytes.length, gapMs: wait};
+		push(0xf0, ...toVlq(bytes.length - 1), ...bytes.slice(1));
 	}
 	push(...toVlq(0), 0xff, 0x2f, 0x00);
 
