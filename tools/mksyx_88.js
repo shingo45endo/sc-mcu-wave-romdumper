@@ -3,6 +3,10 @@
 	Build the SC-88 family dump files.
 
 	  node tools/mksyx_88.js [--bin build/88] [--out syx]
+	  node tools/mksyx_88.js --model sc-88vl --chip 0 --at 78A78,168F82
+
+	The second form writes one file for the passes covering those offsets, which is what cli/extract.js prints when
+	something did not arrive.
 
 	Input is what the assembler produced in build/88, plus the model catalogue in tools/catalogue.json. Output is syx/.
 
@@ -19,7 +23,7 @@ import url from 'node:url';
 import util from 'node:util';
 
 import {formatDuration} from '../lib/format.js';
-import {planPasses, toRequestBytes} from '../lib/wave_plan_88.js';
+import {CHIP_SELECT_SIZE, planPasses, toRequestBytes} from '../lib/wave_plan_88.js';
 import {buildFileHeader, buildPassHeader, HEADER_SIZE} from '../lib/bulk_dump.js';
 import {buildBulkMessages, buildRequestMessage, buildWriteMessage, gsResetMessage, triggerMessage} from './bulk_load.js';
 import {writeSmf} from './smf_write.js';
@@ -51,7 +55,8 @@ function printUsageAndExit(message) {
 	if (message) {
 		process.stderr.write(`mksyx_88: ${message}\n\n`);
 	}
-	process.stderr.write('usage: node tools/mksyx_88.js [--bin build/88] [--out syx]\n');
+	process.stderr.write('usage: node tools/mksyx_88.js [--bin build/88] [--out syx]\n' +
+		'       node tools/mksyx_88.js --model KEY --chip N --at HHHH[,HHHH...]\n');
 
 	process.exit((message) ? 2 : 0);
 }
@@ -108,6 +113,9 @@ function main() {
 				help: {type: 'boolean', short: 'h'},
 				bin: {type: 'string', default: 'build/88'},
 				out: {type: 'string', default: 'syx'},
+				model: {type: 'string'},
+				chip: {type: 'string'},
+				at: {type: 'string'},
 			},
 		}));
 	} catch (e) {
@@ -122,10 +130,24 @@ function main() {
 	fs.mkdirSync(outDir, {recursive: true});
 	const catalogue = JSON.parse(fs.readFileSync(path.join(ROOT, 'tools', 'catalogue.json'), 'utf8'));
 
+	const wanted = (values.at === undefined)
+		? null
+		: values.at.split(',').map((text) => parseInt(text.trim(), 16));
+	if (wanted && (values.model === undefined || values.chip === undefined)) {
+		printUsageAndExit('--at needs --model and --chip as well');
+	}
+	if (wanted && wanted.some((at) => !Number.isInteger(at))) {
+		printUsageAndExit('--at takes hexadecimal offsets, separated by commas');
+	}
+
 	const written = [];
 	const made = new Set();
 	const models = {};
+	const configs = {};
 	for (const [key, model] of Object.entries(catalogue.models ?? {})) {
+		if (wanted && key !== values.model) {
+			continue;
+		}
 		if ((model.family ?? '55') !== FAMILY) {
 			continue;
 		}
@@ -144,6 +166,7 @@ function main() {
 			process.stderr.write(`mksyx_88: ${key} wants config ${model.config}, which lists no chips - skipping\n`);
 			continue;
 		}
+		const files = [];
 		const regions = model.readRegions ?? [];
 		if (!regions.length) {
 			throw new Error(`${key} has no readRegions, so there is nothing to read the dumper's result out of`);
@@ -155,24 +178,49 @@ function main() {
 		// Named by the layout and the dumper, not by the synth: two synths that need the same file get the same one.
 		const stems = chips.map((_, chipNo) => `dump-${model.config}-${model.dumper}-chip${chipNo}`);
 		for (const [chipNo, size] of chips.entries()) {
-			const stem = stems[chipNo];
+			if (wanted && chipNo !== Number(values.chip)) {
+				continue;
+			}
+			const stem = (wanted) ? `retry-${model.config}-${model.dumper}-chip${chipNo}` : stems[chipNo];
+			const whole = planPasses(size, passBytes);
+			const passes = (wanted)
+				? whole.filter((pass) => wanted.some((at) => (at >= pass.at && at < pass.at + pass.size)))
+				: whole;
+			if (!passes.length) {
+				printUsageAndExit(`nothing in ${key} chip ${chipNo} covers those offsets`);
+			}
+			// Named after where it starts, as the other family names its wave ROM files: WAVE_00, WAVE_20, ...
+			const start = chipNo * CHIP_SELECT_SIZE;
+			const name = `WAVE_${(start >> 16).toString(16).toUpperCase().padStart(2, '0')}.BIN`;
+			const seconds = Math.round((passes.length + 1) *
+				(2 * GAP_REQUEST_MS + GAP_TRIGGER_MS + GAP_ANSWER_MS) / 1000);
+			files.push({name, size, source: 'wave', start, dump: `${stem}.syx`, seconds});
+			// Two synths that need the same file share it, so it is only built once.
 			if (made.has(stem)) {
 				continue;
 			}
 			made.add(stem);
-			const passes = planPasses(size, passBytes);
-			const name = `WAVE_${(chipNo * 2).toString(16).toUpperCase().padStart(2, '0')}.BIN`;
 			const messages = [...loader,
-				...buildFileHeaderPass(regions, {size, passCount: passes.length, name})];
+				...buildFileHeaderPass(regions, {size, passCount: whole.length, name})];
 			for (const pass of passes) {
 				messages.push(...buildPass(chipNo, pass, regions));
 			}
 			const syx = concatSysex(messages);
 			fs.writeFileSync(path.join(outDir, `${stem}.syx`), syx);
 			fs.writeFileSync(path.join(outDir, `${stem}.mid`), writeSmf(messages, {name: stem}));
-			const seconds = (passes.length + 1) * (2 * GAP_REQUEST_MS + GAP_TRIGGER_MS + GAP_ANSWER_MS) / 1000;
 			written.push({stem, size, passes: passes.length, bytes: syx.length, seconds});
 		}
+		if (wanted) {
+			continue;
+		}
+		// The same four things the other family publishes about a layout, so that one table describes both.
+		const declared = catalogue.configs?.[model.config] ?? {};
+		configs[model.config] = {
+			note: declared.note ?? '',
+			isLayoutConfirmed: declared.isLayoutConfirmed ?? false,
+			files: files.map((file) => ({name: file.name, size: file.size, source: file.source, start: file.start})),
+			seconds: files.reduce((total, file) => (total + file.seconds), 0),
+		};
 		models[key] = {
 			label: model.label,
 			family: FAMILY,
@@ -180,7 +228,7 @@ function main() {
 			dumper: model.dumper,
 			isDumpTested: model.isDumpTested ?? false,
 			readRegions: regions,
-			dump: stems.map((stem) => `${stem}.syx`),
+			dump: files.map((file) => file.dump),
 			...(model.systemInfo) ? {systemInfo: model.systemInfo} : {},
 		};
 	}
@@ -197,13 +245,19 @@ function main() {
 	}
 	process.stderr.write(`\nwritten to ${path.relative(ROOT, outDir)}/  (.syx and .mid of each)\n`);
 
+	if (wanted) {
+		return 0;	// a retry is not a release: the published table is left alone
+	}
+
 	// One published table for every family, so the page and the command line tools read one file. mksyx_55
 	// writes it first and this adds to it, which is the order the Makefile runs them in.
 	const stampPath = path.join(outDir, 'models.json');
-	const stamp = (fs.existsSync(stampPath)) ? JSON.parse(fs.readFileSync(stampPath, 'utf8')) : {models: {}};
+	const stamp = (fs.existsSync(stampPath)) ? JSON.parse(fs.readFileSync(stampPath, 'utf8')) : {configs: {}, models: {}};
+	stamp.configs = {...stamp.configs, ...configs};
 	stamp.models = {...stamp.models, ...models};
 	fs.writeFileSync(stampPath, `${JSON.stringify(stamp, null, '\t')}\n`);
-	process.stderr.write(`${Object.keys(models).length} model(s) added to ${path.relative(ROOT, stampPath)}\n`);
+	process.stderr.write(`${Object.keys(models).length} model(s) and ${Object.keys(configs).length} layout(s) ` +
+		`added to ${path.relative(ROOT, stampPath)}\n`);
 
 	return 0;
 }
