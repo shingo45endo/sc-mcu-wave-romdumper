@@ -269,6 +269,87 @@
 				}
 			],
 			"seconds": 1642
+		},
+		"wave-2m2m2m2m": {
+			"note": "2 MiB in each of four chip selects, read through the tone generator",
+			"isLayoutConfirmed": true,
+			"bankBits": 1,
+			"chipSelectSize": 2097152,
+			"files": [
+				{
+					"name": "WAVE_00.BIN",
+					"size": 2097152,
+					"source": "wave",
+					"start": 0,
+					"seconds": 2003
+				},
+				{
+					"name": "WAVE_20.BIN",
+					"size": 2097152,
+					"source": "wave",
+					"start": 2097152,
+					"seconds": 2003
+				},
+				{
+					"name": "WAVE_40.BIN",
+					"size": 2097152,
+					"source": "wave",
+					"start": 4194304,
+					"seconds": 2003
+				},
+				{
+					"name": "WAVE_60.BIN",
+					"size": 2097152,
+					"source": "wave",
+					"start": 6291456,
+					"seconds": 2003
+				}
+			],
+			"seconds": 8012
+		},
+		"wave-4m4m4m4m4m": {
+			"note": "4 MiB in each of five chip selects, read through the tone generator. The chip select encoding and the scrambling are not confirmed",
+			"isLayoutConfirmed": false,
+			"bankBits": 2,
+			"chipSelectSize": 4194304,
+			"files": [
+				{
+					"name": "WAVE_00.BIN",
+					"size": 4194304,
+					"source": "wave",
+					"start": 0,
+					"seconds": 4001
+				},
+				{
+					"name": "WAVE_40.BIN",
+					"size": 4194304,
+					"source": "wave",
+					"start": 4194304,
+					"seconds": 4001
+				},
+				{
+					"name": "WAVE_80.BIN",
+					"size": 4194304,
+					"source": "wave",
+					"start": 8388608,
+					"seconds": 4001
+				},
+				{
+					"name": "WAVE_C0.BIN",
+					"size": 4194304,
+					"source": "wave",
+					"start": 12582912,
+					"seconds": 4001
+				},
+				{
+					"name": "WAVE_100.BIN",
+					"size": 4194304,
+					"source": "wave",
+					"start": 16777216,
+					"seconds": 4001
+				}
+			],
+			"seconds": 20005
 		}
 	},
 	"models": {
@@ -276,6 +357,7 @@
 			"label": "Roland SC-55",
 			"config": "mcu-wave-1m1m1m",
 			"dumper": "maincpu532",
+			"scramble": "sc55",
 			"isDumpTested": true,
 			"loader": [
 				"00-gsreset.syx",
@@ -293,6 +375,7 @@
 			"label": "Roland SC-155",
 			"config": "mcu-wave-1m1m1m",
 			"dumper": "maincpu532",
+			"scramble": "sc55",
 			"isDumpTested": false,
 			"loader": [
 				"00-gsreset.syx",
@@ -308,6 +391,7 @@
 			"label": "Roland SC-55mkII, SC-55ST/K",
 			"config": "mcu-wave-2m1m",
 			"dumper": "subcpu",
+			"scramble": "sc55",
 			"isDumpTested": true,
 			"loader": [
 				"00-gsreset.syx",
@@ -323,6 +407,7 @@
 			"label": "Roland SC-33",
 			"config": "mcu-wave-2m",
 			"dumper": "maincpu532",
+			"scramble": "sc55",
 			"isDumpTested": true,
 			"loader": [
 				"00-gsreset.syx",
@@ -338,6 +423,7 @@
 			"label": "Boss DS-330",
 			"config": "mcu-wave-2m",
 			"dumper": "maincpu532",
+			"scramble": "sc55",
 			"isDumpTested": false,
 			"loader": [
 				"00-gsreset.syx",
@@ -353,6 +439,7 @@
 			"label": "Roland SD-35",
 			"config": "mcu-wave-1m",
 			"dumper": "maincpu532",
+			"scramble": "sc55",
 			"isDumpTested": true,
 			"loader": [
 				"00-gsreset.syx",
@@ -368,6 +455,7 @@
 			"label": "Roland RA-30",
 			"config": "wave-1m",
 			"dumper": "maincpu510",
+			"scramble": "sc55",
 			"isDumpTested": true,
 			"loader": [
 				"00-gsreset.syx",
@@ -383,6 +471,7 @@
 			"label": "Roland XP-10",
 			"config": "wave-2m2m",
 			"dumper": "maincpu510",
+			"scramble": "sc55",
 			"isDumpTested": false,
 			"loader": [
 				"00-gsreset.syx",
@@ -398,6 +487,7 @@
 			"label": "Roland CM-300, SCC-1",
 			"config": "mcu-wave-1m1m1m",
 			"dumper": "maincpu532",
+			"scramble": "sc55",
 			"isDumpTested": false,
 			"loader": [
 				"00-gsreset.syx",
@@ -415,6 +505,7 @@
 			"label": "Roland PMA-5",
 			"config": "wave-2m",
 			"dumper": "maincpu510",
+			"scramble": "sc55",
 			"isDumpTested": false,
 			"loader": [
 				"00-gsreset.syx",
@@ -424,6 +515,128 @@
 			"dump": "dump-wave-2m-maincpu510.syx",
 			"systemInfo": [
 				"GS-28 VER=2.00  IW-GS           "
+			]
+		},
+		"sc-88": {
+			"label": "Roland SC-88",
+			"family": "88",
+			"config": "wave-2m2m2m2m",
+			"dumper": "sc88",
+			"scramble": "sc88",
+			"isDumpTested": false,
+			"loader": [
+				"00-gsreset.syx",
+				"01-dumper-sc88.syx"
+			],
+			"readRegions": [
+				{
+					"addr": "28 00 00",
+					"size": 1408
+				},
+				{
+					"addr": "28 10 00",
+					"size": 1408
+				},
+				{
+					"addr": "29 00 00",
+					"size": 1424
+				},
+				{
+					"addr": "29 10 00",
+					"size": 1424
+				}
+			],
+			"dump": [
+				"dump-wave-2m2m2m2m-sc88-chip0.syx",
+				"dump-wave-2m2m2m2m-sc88-chip1.syx",
+				"dump-wave-2m2m2m2m-sc88-chip2.syx",
+				"dump-wave-2m2m2m2m-sc88-chip3.syx"
+			],
+			"systemInfo": [
+				"GS-64 VER=3.00  SC-88           ",
+				"GS-64 VER=3.00  SC-88 BOARD     "
+			]
+		},
+		"sc-88vl": {
+			"label": "Roland SC-88VL",
+			"family": "88",
+			"config": "wave-2m2m2m2m",
+			"dumper": "sc88",
+			"scramble": "sc88",
+			"isDumpTested": true,
+			"loader": [
+				"00-gsreset.syx",
+				"01-dumper-sc88.syx"
+			],
+			"readRegions": [
+				{
+					"addr": "28 00 00",
+					"size": 1408
+				},
+				{
+					"addr": "28 10 00",
+					"size": 1408
+				},
+				{
+					"addr": "29 00 00",
+					"size": 1424
+				},
+				{
+					"addr": "29 10 00",
+					"size": 1424
+				}
+			],
+			"dump": [
+				"dump-wave-2m2m2m2m-sc88-chip0.syx",
+				"dump-wave-2m2m2m2m-sc88-chip1.syx",
+				"dump-wave-2m2m2m2m-sc88-chip2.syx",
+				"dump-wave-2m2m2m2m-sc88-chip3.syx"
+			],
+			"systemInfo": [
+				"GS-64 VER=3.00  SC-88VL         ",
+				"GS-64 VER=3.00  SC-88VL BOARD   "
+			]
+		},
+		"sc-88pro": {
+			"label": "Roland SC-88Pro",
+			"family": "88",
+			"config": "wave-4m4m4m4m4m",
+			"dumper": "sc88pro",
+			"scramble": "sc88",
+			"isDumpTested": false,
+			"loader": [
+				"00-gsreset.syx",
+				"01-dumper-sc88pro.syx"
+			],
+			"readRegions": [
+				{
+					"addr": "28 00 00",
+					"size": 1408
+				},
+				{
+					"addr": "28 10 00",
+					"size": 1408
+				},
+				{
+					"addr": "29 00 00",
+					"size": 1424
+				},
+				{
+					"addr": "29 10 00",
+					"size": 1424
+				}
+			],
+			"dump": [
+				"dump-wave-4m4m4m4m4m-sc88pro-chip0.syx",
+				"dump-wave-4m4m4m4m4m-sc88pro-chip1.syx",
+				"dump-wave-4m4m4m4m4m-sc88pro-chip2.syx",
+				"dump-wave-4m4m4m4m4m-sc88pro-chip3.syx",
+				"dump-wave-4m4m4m4m4m-sc88pro-chip4.syx"
+			],
+			"systemInfo": [
+				"GS-64 VER=3.00  SC-88Pro        ",
+				"GS-64 VER=3.00  SC-88ProVL      ",
+				"GS-64 VER=3.00  SC-88ProVL BOARD"
 			]
 		}
 	}
