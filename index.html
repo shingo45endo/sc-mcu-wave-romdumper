@@ -45,7 +45,7 @@
 		<div id="my-droparea" class="card">
 			<div class="card-body d-flex align-items-center justify-content-center py-5">
 				<form class="text-center">
-					<p class="card-text">Drag and drop the external firmware ROM of an SC-55 or a close relative<br>or</p>
+					<p class="card-text">Drag and drop the external firmware ROM of an SC-55 or an SC-88, or of a close relative<br>or</p>
 					<input id="my-choosefile" class="position-absolute invisible" type="file" accept=".bin,.rom,application/octet-stream">
 					<label class="btn btn-primary" for="my-choosefile">Choose a file</label>
 				</form>
@@ -111,14 +111,15 @@
 	<script type="module">
 		import {toHex, toHexBytes} from './lib/format.js';
 		import {MAGIC_WORD} from './lib/hook.js';
-		import {analyzeRom, patchRom} from './lib/patcher_55.js';
+		import {analyzeRom as analyzeRom55, patchRom as patchRom55} from './lib/patcher_55.js';
+		import {analyzeRom as analyzeRom88, patchRom as patchRom88} from './lib/patcher_88.js';
 
 		// Every way analyzeRom() and patchRom() can say no, in words for somebody who is about to burn a chip rather than for
-		// somebody reading a disassembly. The library returns a code and the numbers behind it; cli/patch_55.js spells the same
-		// codes out in far more detail, which is right there and wrong here.
+		// somebody reading a disassembly. The library returns a code and the numbers behind it; cli/patch_55.js and
+		// cli/patch_88.js spell the same codes out in far more detail, which is right there and wrong here.
 		const REASON_TEXTS = {
 			'handler-not-found':
-				'This does not look like the firmware ROM of an SC-55 or a close relative.',
+				'This does not look like the firmware ROM of an SC-55 or an SC-88, or of a close relative of either.',
 			'handler-ambiguous':
 				'The part this tool patches appears more than once here, so it cannot tell which one to use.',
 			'handler-entry-not-found':
@@ -141,6 +142,18 @@
 				'That address is too far from the handler for the patch to reach.',
 			'trampoline-does-not-fit':
 				'That address is past the end of the image.',
+			'table-entry-not-found':
+				'The jump table entry that points at the handler is not in this image.',
+			'bulk-table-not-found':
+				'The table of the areas this synth hands back over MIDI is not in this image.',
+			'bulk-table-ambiguous':
+				'Several places look like the table of areas this synth hands back, so it cannot tell which one is right.',
+			'load-region-not-found':
+				'The table is here, but none of its areas is big enough to load the dumper into.',
+			'ram-page-not-found':
+				'This image never sets the page its own data lives in, so the stub would not know where to look.',
+			'ram-page-ambiguous':
+				(d) => `Two pages look equally likely for this firmware's own data: H'${toHex(d.page)} and H'${toHex(d.runnerUpPage)}.`,
 		};
 
 		// `what` is whatever carried the code: a hook, table or stub result, or the details of a patch error.
@@ -151,6 +164,32 @@
 				return text(what);
 			}
 			return text ?? `Something went wrong (${what.reasonCode}).`;
+		}
+
+		// Both families are patched the same way - find the handler, put a stub in free space, point the jump table at
+		// it - but they are different CPUs, so what is looked for, and what the stub is, belong to each family.
+		const FAMILIES = [
+			{analyzeRom: analyzeRom55, patchRom: patchRom55, describeRom: describeRom55, formatStub: formatStub55},
+			{analyzeRom: analyzeRom88, patchRom: patchRom88, describeRom: describeRom88, formatStub: formatStub88},
+		];
+
+		// Each patcher turns the other family's image down, so the one that finds its handler is the one to use.
+		// When neither does, the first speaks: most people who get here have an SC-55.
+		function chooseFamily(bytes) {
+			const tried = [];
+			let firstError = null;
+			for (const family of FAMILIES) {
+				try {
+					tried.push({family, info: family.analyzeRom(bytes)});
+				} catch (e) {
+					firstError ??= e;
+				}
+			}
+			if (!tried.length) {
+				throw firstError;
+			}
+
+			return tried.find((one) => one.info.hook.isOk) ?? tried[0];
 		}
 
 		const elemDrop     = document.getElementById('my-droparea');
@@ -196,27 +235,20 @@
 
 		async function loadFile(file) {
 			const bytes = new Uint8Array(await file.arrayBuffer());
-			let info;
+			let chosen;
 			try {
-				info = analyzeRom(bytes);
+				chosen = chooseFamily(bytes);
 			} catch (e) {
 				showError(e.message);
 				return;
 			}
-			current = {name: file.name, bytes, info};
+			current = {name: file.name, bytes, family: chosen.family, info: chosen.info};
 			renderReport();
 		}
 
-		function renderReport() {
-			const {name, bytes, info} = current;
-
-			function addRow(label, value, className = '') {
-				const tr = document.createElement('tr');
-				tr.innerHTML = `<th scope="row">${label}</th><td class="${className}"></td>`;
-				tr.lastElementChild.textContent = value;
-				elemReport.appendChild(tr);
-			}
-
+		// One row of the table on the left: [label, value] or [label, value, className]. An empty label carries on
+		// from the row above, which is how a list of several things is written.
+		function describeRom55(info) {
 			// Where the stub is, or would go, and which of the three ways said so. The fixed address is the same on every image
 			// but the SC-33, which is the point of it: a patched ROM is recognizable at a glance.
 			function describeStubAddr() {
@@ -233,13 +265,96 @@
 				return `${at} (searched: H'${toHex(info.stub.fixedAt, 5)} is taken on this image)`;
 			}
 
+			const rows = [];
+			if (info.version) {
+				rows.push(['Version string', info.version.text]);
+			}
+			// Before the details, because it changes what all of them mean.
+			if (info.stub.isPatched) {
+				rows.push(['Already patched', `the stub is at H'${toHex(info.stub.at, 5)}`, 'text-success']);
+			} else if (info.hasUnknownPatch) {
+				rows.push(['Already patched',
+					'Something else has already changed this ROM, in a way this tool does not recognize. Please start over with an unmodified ROM.',
+					'text-danger']);
+			}
+			rows.push(['DT1 handler (40 1x 17)',
+				(info.hook.isOk) ? `H'${toHex(info.hook.offset, 5)}` : getReasonText(info.hook),
+				(info.hook.isOk) ? 'text-success' : 'text-danger']);
+			rows.push(['Jump table',
+				(info.table.isOk) ? `H'${toHex(info.table.start, 5)}, ${info.table.entries} entries; ours at H'${toHex(info.table.offset, 5)}` : getReasonText(info.table),
+				(info.table.isOk) ? 'text-success' : 'text-danger']);
+			// When the table itself was not found, the row above says why and this one would only repeat it in weaker words.
+			if (info.table.isOk) {
+				rows.push(['Stub address', describeStubAddr(), (info.stub.isOk) ? 'text-success' : 'text-danger']);
+			}
+
+			return rows;
+		}
+
+		function describeRom88(info) {
+			const rows = [];
+			if (info.isSwapped) {
+				rows.push(['Byte order',
+					'the two halves of every word are the other way round; the patched file is written back the same way']);
+			}
+			for (const [i, model] of info.models.entries()) {
+				rows.push([(i === 0) ? 'Says it is' : '', model.text]);
+			}
+			if (info.stub.isPatched) {
+				rows.push(['Already patched', `the stub is at H'${toHex(info.stub.at, 5)}`, 'text-success']);
+			}
+			rows.push(['DT1 handler (40 1x 17)',
+				(info.hook.isOk) ? `H'${toHex(info.hook.write, 5)}` : getReasonText(info.hook),
+				(info.hook.isOk) ? 'text-success' : 'text-danger']);
+			if (info.hook.isOk) {
+				rows.push(['Read handler', `H'${toHex(info.hook.read, 5)} (left alone)`]);
+			}
+			if (info.entries.isOk) {
+				for (const [i, entry] of info.entries.list.entries()) {
+					rows.push([(i === 0) ? 'Jump table entry' : '',
+						`H'${toHex(entry.offset, 5)}, parameter H'${toHex(entry.paramNo, 4)}`, 'text-success']);
+				}
+			} else if (info.hook.isOk) {
+				rows.push(['Jump table entry', getReasonText(info.entries), 'text-danger']);
+			}
+			rows.push(['Load area',
+				(info.bulk.isOk) ? `H'${toHex(info.bulk.load.addr, 4)}, ${info.bulk.load.size} bytes (bulk dump ${toHexBytes(info.bulk.load.addr3)})` : getReasonText(info.bulk),
+				(info.bulk.isOk) ? 'text-success' : 'text-danger']);
+			rows.push(['RAM page',
+				(info.ramPage.isOk) ? `H'${toHex(info.ramPage.page)} (set ${info.ramPage.count} times)` : getReasonText(info.ramPage),
+				(info.ramPage.isOk) ? 'text-success' : 'text-danger']);
+			if (info.loadAddr !== null) {
+				rows.push(['Load address', `H'${toHex(info.loadAddr, 6)}`]);
+			}
+			if (info.entries.isOk) {
+				const how = (info.stub.how === 'existing')
+					? 'already patched; the stub is there'
+					: `the largest gap between two used areas, ${info.stub.runSize} bytes of H'FF`;
+				rows.push(['Stub address',
+					(info.stub.isOk) ? `H'${toHex(info.stub.at, 5)} (${how})` : getReasonText(info.stub),
+					(info.stub.isOk) ? 'text-success' : 'text-danger']);
+			}
+
+			return rows;
+		}
+
+		function renderReport() {
+			const {name, bytes, family, info} = current;
+
+			function addRow(label, value, className = '') {
+				const tr = document.createElement('tr');
+				tr.innerHTML = `<th scope="row">${label}</th><td class="${className}"></td>`;
+				tr.lastElementChild.textContent = value;
+				elemReport.appendChild(tr);
+			}
+
 			// What the button would do, worked out once here. The preview and the download both read it,
 			// so the page cannot show one thing and hand over another.
 			let result = null;
 			let failureMessage = null;
 			if (info.isReady) {
 				try {
-					result = patchRom(bytes);
+					result = family.patchRom(bytes);
 				} catch (e) {
 					failureMessage = (e.reasonCode)
 						? getReasonText({reasonCode: e.reasonCode, ...e.details}) : e.message;
@@ -251,30 +366,8 @@
 			addRow('File', name);
 			addRow('Size', `${bytes.length} bytes (${Math.round(bytes.length / 1024)} KiB)`);
 			addRow('CRC32', toHex(info.crc32, 8));
-			if (info.version) {
-				addRow('Version string', info.version.text);
-			}
-			// Before the details, because it changes what all of them mean.
-			if (info.stub.isPatched) {
-				addRow('Already patched', `the stub is at H'${toHex(info.stub.at, 5)}`, 'text-success');
-			} else if (info.hasUnknownPatch) {
-				addRow(
-					'Already patched',
-					'Something else has already changed this ROM, in a way this tool does not recognize. Please start over with an unmodified ROM.',
-					'text-danger',
-				);
-			}
-			addRow(
-				'DT1 handler (40 1x 17)', (info.hook.isOk) ? `H'${toHex(info.hook.offset, 5)}` : getReasonText(info.hook),
-				(info.hook.isOk) ? 'text-success' : 'text-danger',
-			);
-			addRow(
-				'Jump table', (info.table.isOk) ? `H'${toHex(info.table.start, 5)}, ${info.table.entries} entries; ours at H'${toHex(info.table.offset, 5)}` : getReasonText(info.table),
-				(info.table.isOk) ? 'text-success' : 'text-danger',
-			);
-			// When the table itself was not found, the row above says why and this one would only repeat it in weaker words.
-			if (info.table.isOk) {
-				addRow('Stub address', describeStubAddr(), (info.stub.isOk) ? 'text-success' : 'text-danger');
+			for (const [label, value, className] of family.describeRom(info)) {
+				addRow(label, value, className);
 			}
 
 			elemPatch.disabled = !result || result.isUnchanged;
@@ -294,14 +387,36 @@
 					'This ROM is already patched. Nothing here would change it.';
 				return;
 			}
+			elemStub.textContent = current.family.formatStub(result);
+		}
+
+		function formatStub55(result) {
 			const s = result.stub;
 			const addr = result.loadAddr;
-			elemStub.textContent =
-				`H'${toHex(result.tableEntry, 5)}  ${toHexBytes(result.replaced)} -> ${toHexBytes(result.written)}   the jump table entry\n\n` +
+
+			return `H'${toHex(result.tableEntry, 5)}  ${toHexBytes(result.replaced)} -> ${toHexBytes(result.written)}   the jump table entry\n\n` +
 				`H'${toHex(result.trampolineAt, 5)}  ${toHexBytes(s.slice(0, 6)).padEnd(18)}CMP:G.W #H'${toHex(MAGIC_WORD, 4)},@H'${toHex((addr + 2) & 0xffff, 4)}:16\n` +
 				`         ${toHexBytes(s.slice(6, 8)).padEnd(18)}BNE     .+4\n` +
 				`         ${toHexBytes(s.slice(8, 12)).padEnd(18)}PJSR    @H'${toHex(addr, 5)}\n` +
 				`         ${toHexBytes(s.slice(12, 15)).padEnd(18)}JMP     @H'${toHex(result.handler & 0xffff, 4)}`;
+		}
+
+		// The SC-88 stub saves the page register around the call and puts it back, because the handler it returns to
+		// expects its own. That is what makes it longer than the other family's.
+		function formatStub88(result) {
+			const s = result.stub;
+			const entries = result.entries.
+				map((entry) => `H'${toHex(entry.offset, 5)}  ${toHexBytes(entry.replaced)} -> ${toHexBytes(entry.written)}   the jump table entry, parameter H'${toHex(entry.paramNo, 4)}`).
+				join('\n');
+
+			return `${entries}\n\n` +
+				`H'${toHex(result.trampolineAt, 5)}  ${toHexBytes(s.slice(0, 2)).padEnd(18)}STC.B   DP,@-SP\n` +
+				`         ${toHexBytes(s.slice(2, 5)).padEnd(18)}LDC.B   #H'${toHex(result.ramPage)},DP\n` +
+				`         ${toHexBytes(s.slice(5, 11)).padEnd(18)}CMP:G.W #H'${toHex(MAGIC_WORD, 4)},@H'${toHex((result.loadAddr + 2) & 0xffff, 4)}:16\n` +
+				`         ${toHexBytes(s.slice(11, 13)).padEnd(18)}BNE     .+4\n` +
+				`         ${toHexBytes(s.slice(13, 17)).padEnd(18)}PJSR    @H'${toHex(result.loadAddr, 6)}\n` +
+				`         ${toHexBytes(s.slice(17, 19)).padEnd(18)}LDC.B   @SP+,DP\n` +
+				`         ${toHexBytes(s.slice(19, 22)).padEnd(18)}JMP     @H'${toHex(result.handler & 0xffff, 4)}`;
 		}
 
 		elemPatch.addEventListener('click', () => {
