@@ -191,7 +191,7 @@
 		import {formatDuration, toHexBytes} from './lib/format.js';
 		import {pingMessage, parsePingReplyData, parsePingReplyDevice, rewriteDeviceId, toSystemInfoText, evaluateSystemInfo} from './lib/identify.js';
 		import {loadCapture, calcTransferMs} from './lib/sysex.js';
-		import {GAP_ANSWER_MS, buildFileHeaderPass, buildPass, getPassBytes, planPasses, toRegions} from './lib/wave_plan_88.js';
+		import {ANSWER_MS, buildFileHeaderPass, buildPass, getPassBytes, planPasses, toRegions} from './lib/wave_plan_88.js';
 		import {convertToRomImage, looksLikeWaveRom} from './lib/wave_scramble.js';
 
 		const NOT_SUPPORTED_ON_BROWSER = {
@@ -379,12 +379,12 @@
 		}
 
 		// How long one chip takes here. The catalogue's own figure is for the prepared files, which pace themselves
-		// differently, so it would be wrong by a quarter.
+		// differently and leave room for an answer this page waits for, so it would be a tenth too long.
 		function getChipSeconds(file) {
 			const regions = toRegions(expected.readRegions);
 			const passBytes = getPassBytes(regions);
 			const one = buildPass(0, {at: 0, size: passBytes}, regions, {bankBits: expected.bankBits});
-			const passMs = one.reduce((total, entry, i) => (total + getPauseMs(entry, i === one.length - 1)), 0) + GAP_ANSWER_MS;
+			const passMs = one.reduce((total, entry, i) => (total + getPauseMs(entry, i === one.length - 1)), 0) + ANSWER_MS;
 			// One pass more than the wave ROM needs, for the file header.
 			const passCount = planPasses(file.size, passBytes).length + 1;
 
