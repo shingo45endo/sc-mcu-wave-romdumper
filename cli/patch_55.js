@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /*
-	Command line front end for patcher.js.
+	Command line front end for patcher_55.js.
 
-	  node cli/patch.js <rom.bin> [-o out.bin] [--addr 8CD4] [-n]
+	  node cli/patch_55.js <rom.bin> [-o out.bin] [--addr 8CD4] [-n]
 
 	  -o, --out     where to write the patched ROM (default: <rom>_patched.bin)
 	  --addr        RAM address to jump to, hex (default: H'8CD4, the drum set 2 area, which is the same on every model checked)
@@ -15,7 +15,8 @@ import process from 'node:process';
 import util from 'node:util';
 
 import {toHex, toHexBytes} from '../lib/format.js';
-import {analyzeRom, patchRom, triggerSysEx, MAGIC_WORD} from '../lib/patcher.js';
+import {MAGIC_WORD, triggerSysEx} from '../lib/hook.js';
+import {analyzeRom, patchRom} from '../lib/patcher_55.js';
 
 const REASON_TEXTS = {
 	'handler-not-found':
@@ -115,8 +116,8 @@ function printUsageAndExit(message) {
 	if (message) {
 		process.stderr.write(`patch: ${message}\n\n`);
 	}
-	process.stderr.write('usage: node cli/patch.js <rom.bin> [-o out.bin] [--addr HHHH]\n' +
-		'                          [--free HHHHH] [-n]\n');
+	process.stderr.write('usage: node cli/patch_55.js <rom.bin> [-o out.bin] [--addr HHHH]\n' +
+		'                            [--free HHHHH] [-n]\n');
 
 	process.exit((message) ? 2 : 0);
 }

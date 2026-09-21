@@ -18,7 +18,7 @@ LOADADDR	equ	$8CD4		; SC-55: drum set 2 parameter area
 TXOFS		equ	$1C0		; body must fit below this
 TABLEOFS	equ	$280		; the modules must fit below this
 ARGOFS		equ	$380		; file table must fit below this
-ARGLEN		equ	12		; DRUM MAP NAME, the drum map's last field
+ARGLEN		equ	12		; Drum Map Name, the drum map's last field
 
 ;--------------------------------------------------------------------------
 ; Source kinds, used in the file table and in V_SRC

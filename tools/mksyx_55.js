@@ -2,12 +2,12 @@
 /*
 	Build the fixed SysEx and MIDI files that drive the dumper.
 
-	Input is what the assembler produced in build/, plus the model catalogue in src/catalogue.json. Output is syx/.
+	Input is what the assembler produced in build/, plus the model catalogue in tools/catalogue.json. Output is syx/.
 
-	    node tools/mksyx.js [--bin build] [--src src] [--out syx]
+	    node tools/mksyx_55.js [--bin build/55] [--src src/55] [--out syx]
 
 	  --bin         where the assembler output is (default: build)
-	  --src         where dumper.inc and catalogue.json are (default: src)
+	  --src         where dumper.inc is (default: src/55)
 	  --out         where to write the .syx and .mid files (default: syx)
 */
 
@@ -18,14 +18,19 @@ import url from 'node:url';
 import util from 'node:util';
 
 import {formatDuration, toHex} from '../lib/format.js';
+import {gsResetMessage, triggerMessage} from '../lib/gs_message.js';
 
-import {buildBulkMessages, gsResetMessage, triggerMessage} from './bulk_load.js';
-import {parseTable, estimateDumpTime, SOURCE_NAMES} from './file_table.js';
+import {buildBulkMessages} from './bulk_load.js';
+import {parseTable, estimateDumpTime, SOURCE_NAMES} from './file_table_55.js';
 import {writeSmf, concatSysex} from './smf_write.js';
+import {checkSystemInfo} from './system_info.js';
 
 const ROOT = path.join(path.dirname(url.fileURLToPath(import.meta.url)), '..');
 
 const DEFAULT_DUMPER = 'maincpu532';
+const FAMILY = '55';
+const BLOCK_ORDER = 'sc55';
+const SCRAMBLE = 'sc55';	// how this generation's board wires its wave ROMs
 
 // What each dumper is named for. The two main CPU ones run the same code and differ only in where their CPU keeps
 // the SCI registers, so the name has to say which CPU rather than just "main CPU".
@@ -72,9 +77,9 @@ function printUsageAndExit(message) {
 		process.stderr.write(`mksyx: ${message}\n\n`);
 	}
 
-	process.stderr.write('usage: node tools/mksyx.js [--bin build] [--src src] [--out syx]\n' +
+	process.stderr.write('usage: node tools/mksyx_55.js [--bin build/55] [--src src/55] [--out syx]\n' +
 		'  --bin   where the assembler output is\n' +
-		'  --src   where dumper.inc and catalogue.json are\n' +
+		'  --src   where dumper.inc is\n' +
 		'  --out   where to write the .syx and .mid files\n');
 	process.exit((message) ? 2 : 0);
 }
@@ -88,8 +93,8 @@ function main() {
 			args: process.argv.slice(2),
 			options: {
 				help: {type: 'boolean', short: 'h'},
-				bin: {type: 'string', default: 'build'},
-				src: {type: 'string', default: 'src'},
+				bin: {type: 'string', default: 'build/55'},
+				src: {type: 'string', default: 'src/55'},
 				out: {type: 'string', default: 'syx'},
 			},
 			allowPositionals: true,
@@ -118,7 +123,7 @@ function main() {
 		throw new Error('dumper.inc has no LOADADDR / TXOFS / TABLEOFS');
 	}
 
-	const catalogue = JSON.parse(fs.readFileSync(path.join(srcDir, 'catalogue.json'), 'utf8'));
+	const catalogue = JSON.parse(fs.readFileSync(path.join(ROOT, 'tools', 'catalogue.json'), 'utf8'));
 
 	// Discover the dumpers the assembler built, and read each one in.
 	const dumpers = fs.readdirSync(binDir).
@@ -181,14 +186,14 @@ function main() {
 		}
 	}
 	const bodyMessages = writeSyxAndMid(
-		'01-body', buildBulkMessages(body, 0),
+		'01-body', buildBulkMessages(body, 0, {blockOrder: BLOCK_ORDER}),
 		formatSmfTitle(1, 'body'),
 	);
 	const loaders = {};
 	for (const kind of dumpers) {
 		loaders[kind] = [...bodyMessages, ...writeSyxAndMid(
 			`02-tx-${kind}`,
-			buildBulkMessages(bodies[kind].slice(txOfs), txOfs),
+			buildBulkMessages(bodies[kind].slice(txOfs), txOfs, {blockOrder: BLOCK_ORDER}),
 			formatSmfTitle(2, `transmit module, ${getCpuLabel(kind)}`),
 		)];
 	}
@@ -207,7 +212,7 @@ function main() {
 
 		tableMessages[name] = writeSyxAndMid(
 			`03-${name}`,
-			buildBulkMessages(bytes, tableOfs),
+			buildBulkMessages(bytes, tableOfs, {blockOrder: BLOCK_ORDER}),
 			formatSmfTitle(3, `file table ${name}, ${files.length} file(s) (${formatDuration(seconds)})`),
 		);
 
@@ -231,9 +236,12 @@ function main() {
 	// Only models whose dumper and table were both built are offered.
 	const models = {};
 	const pairs = new Map();
-	// Which layout each system information block has already been claimed by, so the check below can see across models.
-	const configByBlock = new Map();
+	// Which layout each system information block has already been claimed by, so the check can see across models.
+	const claimedBlocks = new Map();
 	for (const [key, model] of Object.entries(catalogue.models ?? {})) {
+		if ((model.family ?? FAMILY) !== FAMILY) {
+			continue;	// another family, another generator
+		}
 		const kind = model.dumper ?? DEFAULT_DUMPER;
 		if (!configs[model.config]) {
 			process.stderr.write(`mksyx: ${key} wants config ${model.config}, which was not built - skipping\n`);
@@ -250,33 +258,13 @@ function main() {
 			label: model.label,
 			config: model.config,
 			dumper: kind,
+			scramble: SCRAMBLE,
 			isDumpTested: model.isDumpTested ?? false,
 			loader: ['00-gsreset.syx', '01-body.syx', `02-tx-${kind}.syx`],
 			dump: `dump-${model.config}-${kind}.syx`,
 		};
 		if (model.systemInfo) {
-			// The catalogue holds the 32 bytes, written either as the 32 characters or as 64 hex digits.
-			// An editor that trims the trailing spaces off the readable form would silently break every match,
-			// so it is worth stopping the build over.
-			for (const entry of model.systemInfo) {
-				const isHexEncoded = ((entry.length === 64) && (/^[0-9a-fA-F]{64}$/u).test(entry));
-				if (!isHexEncoded && entry.length !== 32) {
-					throw new Error(`${key}: systemInfo ${JSON.stringify(entry)} is ${entry.length} characters, ` +
-						'not the 32 bytes the synth returns (or 64 hex digits)');
-				}
-				// One block, one layout. The page names the synth from these 32 bytes and then dumps what that
-				// layout needs, so a block two layouts both claim would quietly have one of them picked for it.
-				// Two models sharing a block is fine - the SC-55 and the SC-155 do - as long as they agree here.
-				// Both spellings of the same bytes have to land on the same key, so the hex form is decoded first.
-				const block = (isHexEncoded) ? entry.replace(/../gu, (pair) => String.fromCharCode(parseInt(pair, 16))) : entry;
-				const owner = configByBlock.get(block);
-				if (owner && owner.config !== model.config) {
-					throw new Error(`${key}: systemInfo ${JSON.stringify(entry)} is also ${owner.key}'s, ` +
-						`but ${key} is ${model.config} and ${owner.key} is ${owner.config}. ` +
-						'One block cannot name two wave ROM layouts');
-				}
-				configByBlock.set(block, {key, config: model.config});
-			}
+			checkSystemInfo(key, model.systemInfo, model.config, claimedBlocks);
 			models[key].systemInfo = model.systemInfo;
 		}
 	}
@@ -317,18 +305,6 @@ function main() {
 		`${JSON.stringify({configs, models}, null, '\t')}\n`,
 	);
 
-	// Remove anything left over from an earlier build.
-	// Drop anything left from an earlier build. Dropping a dumper or a layout would otherwise leave its files behind,
-	// and a stale 02-tx-*.syx that no model asks for any more is worse than confusing: someone could still find it and
-	// play it.
-	const keepFiles = new Set(writtenFiles.flatMap(([stem]) => [`${stem}.syx`, `${stem}.mid`]));
-	keepFiles.add('models.json');
-	for (const file of fs.readdirSync(outDir)) {
-		if ((file.endsWith('.syx') || file.endsWith('.mid')) && !keepFiles.has(file)) {
-			fs.unlinkSync(path.join(outDir, file));
-			process.stderr.write(`mksyx: removed stale ${file}\n`);
-		}
-	}
 	writtenFiles.push(['models.json', Object.keys(models).length, fs.readFileSync(path.join(outDir, 'models.json')).length]);
 
 	// Print the build summary. Every column is measured from what is about to be printed, so a longer dumper, layout or

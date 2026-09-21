@@ -6,6 +6,7 @@
 	  node cli/rom_image.js --check sc55_waverom1.bin WAVE_00.BIN
 
 	  -d, --dir     where to write (default: .)
+	  --scramble    which family the dump came from: sc55 or sc88. Required
 	  --suffix      appended before the extension (default: _rom)
 	  --check       compare against a known chip dump instead of writing
 	  -r, --reverse go the other way: chip image -> what the port would return
@@ -15,16 +16,38 @@ import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import util from 'node:util';
+import crypto from 'node:crypto';
 
-import {convertToRomImage, convertToPortOrder, toHeaderText, looksLikeWaveRom} from '../lib/wave_scramble.js';
+import {calcCrc32} from '../lib/rom_search.js';
+import {convertToRomImage, convertToPortOrder, getScrambleNames, toHeaderText, looksLikeWaveRom} from '../lib/wave_scramble.js';
 
 function printUsageAndExit(message) {
 	if (message) {
 		process.stderr.write(`rom_image: ${message}\n\n`);
 	}
-	process.stderr.write('usage: node cli/rom_image.js <dump.bin> [more...] [-d outdir]\n' +
+	process.stderr.write('usage: node cli/rom_image.js --scramble sc55|sc88 <dump.bin> [more...] [-d outdir]\n' +
 		'                            [--suffix S] [-r] [--check <chip.bin> <dump.bin>]\n');
 	process.exit((message) ? 2 : 0);
+}
+
+function toHex32(value) {
+	return value.toString(16).toUpperCase().padStart(8, '0');
+}
+
+// Swap the two bytes of every word. Its own inverse.
+function swapBytes(bytes) {
+	const out = bytes.slice();
+	for (let i = 0; i + 1 < out.length; i += 2) {
+		const first = out[i];
+		out[i] = out[i + 1];
+		out[i + 1] = first;
+	}
+
+	return out;
+}
+
+function isSame(a, b) {
+	return (a.length === b.length) && a.every((byte, i) => (byte === b[i]));
 }
 
 function readInputFile(input) {
@@ -48,6 +71,7 @@ try {
 		options: {
 			help: {type: 'boolean', short: 'h'},
 			dir: {type: 'string', short: 'd', default: '.'},
+			scramble: {type: 'string'},
 			suffix: {type: 'string', default: '_rom'},
 			reverse: {type: 'boolean', short: 'r', default: false},
 			check: {type: 'boolean', default: false},
@@ -60,7 +84,11 @@ try {
 if (values.help) {
 	printUsageAndExit();
 }
-const {dir, suffix, reverse: isReverse, check: isCheck} = values;
+const {dir, scramble, suffix, reverse: isReverse, check: isCheck} = values;
+// No default: the two families scramble differently and a wrong guess is a whole ROM of wrong bytes.
+if (!getScrambleNames().includes(scramble)) {
+	printUsageAndExit(`--scramble must be given, as one of: ${getScrambleNames().join(', ')}`);
+}
 
 // Compare the two, and stop here.
 if (isCheck) {
@@ -68,7 +96,7 @@ if (isCheck) {
 		printUsageAndExit('--check takes exactly two files');
 	}
 	const expected = readInputFile(inputs[0]);
-	const actual = convertToRomImage(readInputFile(inputs[1]));
+	const actual = convertToRomImage(readInputFile(inputs[1]), {scramble});
 	const n = Math.min(expected.length, actual.length);
 	let badCount = 0;
 	let first = -1;
@@ -83,6 +111,11 @@ if (isCheck) {
 	process.stderr.write(`${path.basename(inputs[0])}: ${expected.length} bytes\n`);
 	process.stderr.write(`${path.basename(inputs[1])}: ${actual.length} bytes as a ROM image\n`);
 	process.stderr.write(`compared ${n} bytes, ${badCount} differ${(first < 0) ? '' : ` (first at H'${first.toString(16).toUpperCase()})`}\n`);
+	// A wave ROM is 16 bits wide, so a reader can hand one back the other way round.
+	if (badCount > 0 && isSame(swapBytes(expected), actual)) {
+		process.stderr.write('  they are the same image: one of them was read out the other way round,\n' +
+			'  which a 16 bit wide ROM allows\n');
+	}
 
 	process.exit((badCount > 0) ? 1 : 0);
 }
@@ -102,7 +135,7 @@ for (const input of inputs) {
 	}
 	let out;
 	try {
-		out = (isReverse) ? convertToPortOrder(sourceBytes) : convertToRomImage(sourceBytes);
+		out = (isReverse) ? convertToPortOrder(sourceBytes, {scramble}) : convertToRomImage(sourceBytes, {scramble});
 	} catch (e) {
 		process.stderr.write(`${path.basename(input)}: ${e.message}\n`);
 		failCount++;
@@ -116,6 +149,9 @@ for (const input of inputs) {
 	const isValidWaveRom = (isReverse || looksLikeWaveRom(out));
 	process.stderr.write(`${path.basename(input)} -> ${path.join(dir, name)}\n`);
 	process.stderr.write(`  header: ${toHeaderText(out)}\n`);
+	// The two a ROM set lists, so that this can be compared against one without keeping a copy of it here.
+	process.stderr.write(`  crc32:  ${toHex32(calcCrc32(out))}\n`);
+	process.stderr.write(`  sha1:   ${crypto.createHash('sha1').update(out).digest('hex')}\n`);
 	if (!isValidWaveRom) {
 		failCount++;
 		process.stderr.write('  this does not start with "Roland", so either the dump is not\n' +

@@ -46,6 +46,18 @@ The following models probably work too, but because it is difficult to replace t
 | Roland CM-300, SCC-1 | MCU 32 KiB, wave 1 MiB x 3 | H8/532 | its own SCI  | not yet                  |
 | Roland PMA-5         | wave 2 MiB                 | H8/510 | its own SCI  | not yet                  |
 
+The SC-88 family gets the data back another way. Its main CPU has no MIDI Out of its own, so the dumper leaves the wave ROM in RAM and the host reads it back a piece at a time. The website and the command line tool both do this.
+
+| Model name      | ROM images it produces | MCU    | How it comes back  | Testing on a real device |
+| --------------- | ---------------------- | ------ | ------------------ | ------------------------ |
+| Roland SC-88    | wave 2 MiB x 4         | H8/510 | read back from RAM | not yet                  |
+| Roland SC-88VL  | wave 2 MiB x 4         | H8/510 | read back from RAM | done                     |
+| Roland SC-88Pro | wave 4 MiB x 5         | H8/510 | read back from RAM | not yet                  |
+
+One chip takes about half an hour, and the chips are offered one at a time. **The user tone banks and user drum sets are lost**: the dumper uses them as its buffer, and nothing puts them back.
+
+**The SC-88Pro entry is not confirmed.** If it reads the wrong addresses, the dump does not look like a ROM image, and the tools say so.
+
 
 How the patch works
 -------------------

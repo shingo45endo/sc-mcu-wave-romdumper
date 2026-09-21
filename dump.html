@@ -65,6 +65,9 @@
 		#my-verdict code {
 			white-space: pre-wrap;
 		}
+		#my-files.my-nopick .my-pick {
+			display: none;
+		}
 	</style>
 </head>
 <body>
@@ -108,11 +111,26 @@
 				<div id="my-verdict" class="d-none"></div>
 			</div>
 			<div class="col-lg-6 mt-3">
-				<h2 class="h5">2. Dump</h2>
-				<div id="my-models" class="mb-3"></div>
-				<button id="my-start" class="btn btn-primary" type="button" disabled>Start dump</button>
-				<button id="my-stop" class="btn btn-outline-secondary d-none" type="button">Stop</button>
+				<h2 class="h5">2. Synth</h2>
+				<div id="my-models"></div>
 			</div>
+		</div>
+
+		<h2 class="h5 mt-3">3. Files</h2>
+
+		<table id="my-files" class="table table-sm mt-3 d-none">
+			<thead>
+				<tr><th class="my-pick"></th><th>File</th><th class="text-end">Size</th><th class="text-end">Received</th><th class="text-end">Packets</th><th>Status</th><th></th></tr>
+			</thead>
+			<tbody>
+			</tbody>
+		</table>
+
+		<div id="my-files-total" class="form-text d-none"></div>
+
+		<div class="d-flex gap-2 mt-2">
+			<button id="my-start" class="btn btn-primary" type="button" disabled>Start dump</button>
+			<button id="my-stop" class="btn btn-outline-secondary d-none" type="button">Stop</button>
 		</div>
 
 		<div id="my-running" class="d-none">
@@ -122,18 +140,9 @@
 			</div>
 		</div>
 
-		<h2 class="h5  mt-3">Progress:</h2>
-		<div class="progress mt-3" role="progressbar" aria-label="dump progress">
-			<div id="my-progress" class="progress-bar" style="width: 0%"></div>
+		<div id="my-progress" class="progress mt-3 d-none" role="progressbar" aria-label="dump progress">
+			<div id="my-pg-fill" class="progress-bar" style="width: 0%"></div>
 		</div>
-
-		<table id="my-files" class="table table-sm mt-3 d-none">
-			<thead>
-				<tr><th>File</th><th class="text-end">Size</th><th class="text-end">Received</th><th class="text-end">Packets</th><th>Status</th><th></th></tr>
-			</thead>
-			<tbody>
-			</tbody>
-		</table>
 
 		<div class="d-flex gap-2 mt-2">
 			<button id="my-save-all" class="btn btn-success d-none" type="button">Save all files</button>
@@ -176,10 +185,13 @@
 
 	<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
 	<script type="module">
+		import {BulkDumpReceiver} from './lib/bulk_dump.js';
+		import {getBulkDumpResult} from './lib/dump_result.js';
 		import {FileDumpReceiver} from './lib/file_dump.js';
 		import {formatDuration, toHexBytes} from './lib/format.js';
 		import {pingMessage, parsePingReplyData, parsePingReplyDevice, rewriteDeviceId, toSystemInfoText, evaluateSystemInfo} from './lib/identify.js';
 		import {loadCapture, calcTransferMs} from './lib/sysex.js';
+		import {ANSWER_MS, buildFileHeaderPass, buildPass, getPassBytes, planPasses, toRegions} from './lib/wave_plan_88.js';
 		import {convertToRomImage, looksLikeWaveRom} from './lib/wave_scramble.js';
 
 		const NOT_SUPPORTED_ON_BROWSER = {
@@ -194,6 +206,8 @@
 		const SETTLE_MS = 250;
 		const IDLE_TIMEOUT_MS = 20000;
 		const ARMED_TIMEOUT_MS = 2000;
+		const PASS_TIMEOUT_MS = 12000;	// a pass answers in about 4 seconds
+		const MAX_MISSED_PASSES = 5;
 
 		const elemMidiInDevices    = document.getElementById('my-midi-in-devices');
 		const elemMidiOutDevices   = document.getElementById('my-midi-out-devices');
@@ -209,6 +223,9 @@
 		const elemRows             = elemFiles.querySelector('tbody');
 		const elemSaveAll          = document.getElementById('my-save-all');
 		const elemSaveSyx          = document.getElementById('my-save-syx');
+		const elemFilesTotal       = document.getElementById('my-files-total');
+		const elemProgress         = document.getElementById('my-progress');
+		const elemProgressFill     = document.getElementById('my-pg-fill');
 		const modalError   = new bootstrap.Modal('#my-error-modal');
 		const modalConfirm = new bootstrap.Modal('#my-confirm-modal');
 
@@ -221,6 +238,17 @@
 		let capturedBytes = [];
 		let receiver = new FileDumpReceiver();
 		let expected = null;
+		let chosenChips = new Set();
+		let wantedChips = null;
+		let isDumpStarted = false;
+		let bulkReceiver = null;
+		let bulkFile = null;
+		let bulkPassBytes = 0;
+		let bulkPassesDone = 0;
+		let chipSeconds = [];
+		let onPassData = null;		// while a pass is in flight, what every reply to it goes through
+		let cancelPassWait = null;
+		let doneFiles = [];
 		let lastPacketAt = 0;
 		let detectedReply = null;
 		let concern = null;
@@ -291,7 +319,7 @@
 		}
 
 		function buildRomFigure(model) {
-			const SLOT_BYTES = 2 * 1024 * 1024;   // one wave ROM chip select, see src/catalogue.json
+			const SLOT_BYTES = model.chipSelectSize ?? 2 * 1024 * 1024;   // see tools/catalogue.json
 
 			function formatSize(size) {
 				return (size >= 1024 * 1024) ? `${Math.round(size / (1024 * 1024))} MiB` : `${Math.round(size / 1024)} KiB`;
@@ -320,10 +348,11 @@
 				? `<span class="my-rf-mcu me-2" title="MCU ROM, ${mcuText}"><i>${mcuText}</i></span>`
 				: '<span class="my-rf-mcu my-rf-none me-2" title="no internal MCU ROM"></span>';
 
-			const boxes = Array.from({length: 3}, (_, i) => {
+			// Three chip selects unless the layout has more, which is how many a board of this family has.
+			const boxes = Array.from({length: Math.max(3, slots.length)}, (_, i) => {
 				const size = slots[i] ?? 0;
 				if (!size) {
-					return '<span class="my-rf-slot" title="2 MiB slot, nothing there"></span>';
+					return `<span class="my-rf-slot" title="${formatSize(SLOT_BYTES)} slot, nothing there"></span>`;
 				}
 				const sizeText = formatSize(size);
 				sizeTexts.push(sizeText);
@@ -338,6 +367,42 @@
 			const checkedInput = document.querySelector('input[name=model]:checked');
 			const key = (checkedInput) ? checkedInput.value : Object.keys(models)[0];
 			return models[key];
+		}
+
+		function getWantedChips() {
+			return [...chosenChips].sort((a, b) => (a - b));
+		}
+
+		// Whether this file is one of the ones the dump was asked for. Only the SC-88 family has a choice.
+		function isChipWanted(chipNo) {
+			return (getCurrentModel()?.family !== '88') || chosenChips.has(chipNo);
+		}
+
+		// How long one chip takes here. The catalogue's own figure is for the prepared files, which pace themselves
+		// differently and leave room for an answer this page waits for, so it would be a tenth too long.
+		function getChipSeconds(file) {
+			const regions = toRegions(expected.readRegions);
+			const passBytes = getPassBytes(regions);
+			const one = buildPass(0, {at: 0, size: passBytes}, regions, {bankBits: expected.bankBits});
+			const passMs = one.reduce((total, entry, i) => (total + getPauseMs(entry, i === one.length - 1)), 0) + ANSWER_MS;
+			// One pass more than the wave ROM needs, for the file header.
+			const passCount = planPasses(file.size, passBytes).length + 1;
+
+			return Math.round(passCount * passMs / 1000);
+		}
+
+		// How long the dump the user has actually asked for takes.
+		function getSelectedSeconds() {
+			const model = getCurrentModel();
+			if (model?.family !== '88') {
+				return model.seconds;
+			}
+
+			return getWantedChips().reduce((total, chipNo) => (total + chipSeconds[chipNo]), 0);
+		}
+
+		function getWantedRows(files) {
+			return files.filter((file) => file.isWanted);
 		}
 
 		// --------------------------------
@@ -465,10 +530,15 @@
 		function updateButtons() {
 			const hasBothPorts = (Boolean(currentIn) && Boolean(currentOut));
 			elemDetect.disabled = Boolean(activeTask) || !hasBothPorts;
-			elemStart.disabled = Boolean(activeTask) || !hasBothPorts || deviceId === null;
+			const isNothingChosen = (getCurrentModel()?.family === '88' && getWantedChips().length === 0);
+			elemStart.disabled = Boolean(activeTask) || !hasBothPorts || deviceId === null || isNothingChosen;
 
 			elemMidiInDevices.disabled = Boolean(activeTask);
 			elemMidiOutDevices.disabled = Boolean(activeTask);
+			// Changing the synth mid-dump would move the ground under the run.
+			for (const input of elemModels.querySelectorAll('input[name=model]')) {
+				input.disabled = Boolean(activeTask);
+			}
 		}
 
 		// --------------------------------
@@ -502,7 +572,12 @@
 					hasData = true;
 				}
 			}
-			receiver.feed(bytes);
+			if (expected?.family === '88') {
+				bulkReceiver?.feed(bytes);
+				onPassData?.();
+			} else {
+				receiver.feed(bytes);
+			}
 			if (hasData) {
 				lastPacketAt = performance.now();
 			}
@@ -552,6 +627,34 @@
 		// --------------------------------
 		const rows = new Map();
 
+		// Choosing a synth is what fills the file table in, so the table is also where its files are picked. The
+		// rows are thrown away rather than reused, because two synths can have a file of the same name.
+		function chooseModel() {
+			expected = getCurrentModel();
+			// The SC-88 family is read one chip select at a time, half an hour each, so let the user pick which ones
+			// to do now. The other family sends every file in one go, and has nothing to choose.
+			chosenChips = new Set((expected?.family === '88') ? expected.files.map((_, chipNo) => chipNo) : []);
+			chipSeconds = (expected?.family === '88') ? expected.files.map(getChipSeconds) : [];
+			for (const [, row] of rows) {
+				row.tr.remove();
+			}
+			rows.clear();
+			renderFiles();
+			updateButtons();
+		}
+
+		function renderFilesTotal() {
+			const isShown = (expected?.family === '88');
+			elemFilesTotal.classList.toggle('d-none', !isShown);
+			if (!isShown) {
+				return;
+			}
+			const chips = getWantedChips();
+			elemFilesTotal.textContent = (chips.length)
+				? `${chips.length} of ${expected.files.length} selected, about ${formatDuration(getSelectedSeconds())}`
+				: 'Nothing selected.';
+		}
+
 		const RENDER_GAP_MS = 100;
 		let isRenderPending = false;
 
@@ -582,62 +685,153 @@
 			}
 		};
 
-		function renderFiles() {
-			const files = receiver.getProperties();
-			elemFiles.classList.toggle('d-none', files.length === 0);
+		// What has arrived so far, one entry per file. A File Dump names its own files; a bulk dump is one file per
+		// chip, so a chip that has finished is a result of its own and the one being read is counted by its passes.
+		function getArrivedFiles() {
+			if (expected?.family !== '88') {
+				return receiver.getProperties();
+			}
+			const rows = [...doneFiles];
+			if (bulkReceiver && bulkFile) {
+				rows.push({
+					name: bulkFile.name,
+					size: bulkFile.size,
+					received: Math.min(bulkFile.size, bulkPassesDone * bulkPassBytes),
+					packets: bulkReceiver.packets,
+					errors: bulkReceiver.errors,
+					isComplete: false,
+				});
+			}
 
-			let receivedBytes = 0;
+			return rows;
+		}
+
+		// Every file the dump was asked for, with whatever has arrived merged in by name. A file that never arrives
+		// stays in the table rather than being missing from it, and a name nobody expected is added at the end.
+		function getFileRows() {
+			const arrived = getArrivedFiles();
+			const out = (expected?.files ?? []).map((one, chipNo) => {
+				const file = arrived.find((e) => (e.name === one.name)) ??
+					{name: one.name, size: one.size, received: 0, packets: 0, errors: [], isComplete: false};
+
+				return {...file, chipNo, isWanted: isChipWanted(chipNo)};
+			});
+			const shownNames = new Set(out.map((file) => file.name));
+			for (const file of arrived) {
+				if (!shownNames.has(file.name)) {
+					out.push({...file, chipNo: -1, isWanted: true});
+				}
+			}
+
+			return out;
+		}
+
+		function getFileByName(name) {
+			if (expected?.family === '88') {
+				return doneFiles.find((file) => (file.name === name)) ?? null;
+			}
+			const index = receiver.getProperties().findIndex((file) => (file.name === name));
+
+			return (index < 0) ? null : receiver.getFile(index);
+		}
+
+		function getStatusText(file) {
+			if (!file.isWanted && !file.received) {
+				return 'not selected';
+			}
+			if (!isDumpStarted) {
+				return '';		// nothing has been asked for yet, so there is nothing to say
+			}
+			if (file.errors.length) {
+				return `${file.errors.length} error(s)`;
+			}
+			if (file.isComplete) {
+				return 'complete';
+			}
+			if (activeTask) {
+				return (file.received) ? 'receiving...' : 'waiting...';
+			}
+
+			return (file.received) ? 'incomplete' : 'nothing arrived';
+		}
+
+		function renderFiles() {
+			const files = getFileRows();
+			elemFiles.classList.toggle('d-none', files.length === 0);
+			elemFiles.classList.toggle('my-nopick', expected?.family !== '88');
+
 			let completeCount = 0;
-			for (const [i, file] of files.entries()) {
-				const row = getRowFor(i);
-				receivedBytes += file.received;
+			for (const file of files) {
+				const row = getRowFor(file.name, file.chipNo);
 				if (file.isComplete) {
 					completeCount++;
 				}
+				row.pick.checked = file.isWanted;
+				row.pick.disabled = Boolean(activeTask);
 
-				setText(row.cells[0], file.name);
-				setText(row.cells[1], String(file.size));
-				setText(row.cells[2], String(file.received));
-				setText(row.cells[3], String(file.packets));
-				setText(row.cells[4], (file.errors.length) ? `${file.errors.length} error(s)`
-					: (file.isComplete) ? 'complete' : (activeTask) ? 'receiving...' : 'incomplete');
-				setClass(row.cells[4], (file.errors.length) ? 'text-danger'
-					: (file.isComplete) ? 'text-success' : (activeTask) ? '' : 'text-warning-emphasis');
+				setText(row.cells[1], file.name);
+				setText(row.cells[2], String(file.size));
+				setText(row.cells[3], String(file.received));
+				setText(row.cells[4], String(file.packets));
+				setText(row.cells[5], getStatusText(file));
+				setClass(row.cells[5], (!file.isWanted && !file.received) ? 'text-body-secondary'
+					: (file.errors.length) ? 'text-danger'
+						: (file.isComplete) ? 'text-success' : (activeTask) ? '' : 'text-warning-emphasis');
 
 				const isSaveOffered = (file.isComplete || (!activeTask && file.received > 0));
 				setHidden(row.button, !isSaveOffered);
 				setText(row.button, (file.isComplete) ? 'Save' : 'Save partial');
 				setClass(row.button, `btn btn-sm py-0 btn-outline-${(file.isComplete) ? 'primary' : 'secondary'}`);
 			}
-			for (const [i, row] of rows) {
-				if (i >= files.length) {
+			const shownNames = new Set(files.map((file) => file.name));
+			for (const [name, row] of rows) {
+				if (!shownNames.has(name)) {
 					row.tr.remove();
-					rows.delete(i);
+					rows.delete(name);
 				}
 			}
 
-			if (expected) {
-				const elemProgress = document.getElementById('my-progress');
-				const total = expected.files.reduce((p, file) => p + file.size, 0);
-				const pct = Math.min(100, Math.round(100 * receivedBytes / total));
-				elemProgress.style.width = `${pct}%`;
-				elemProgress.textContent = `${pct}%`;
+			// Only what was asked for counts towards the bar, so picking one chip still reaches 100 per cent.
+			const wantedRows = getWantedRows(files);
+			const total = wantedRows.reduce((p, file) => p + file.size, 0);
+			if (total > 0) {
+				const received = wantedRows.reduce((p, file) => p + file.received, 0);
+				const pct = Math.min(100, Math.round(100 * received / total));
+				elemProgressFill.style.width = `${pct}%`;
+				elemProgressFill.textContent = `${pct}%`;
 			}
+			renderFilesTotal();
+			// The bar says nothing before a dump has been asked for.
+			elemProgress.classList.toggle('d-none', !isDumpStarted);
 			elemSaveAll.classList.toggle('d-none', completeCount === 0);
 			// The raw capture stays on offer mid-run: it is the thing to look at when a dump is going wrong,
 			// and its name promises nothing about completeness.
 			elemSaveSyx.classList.toggle('d-none', capturedBytes.length === 0);
 		}
 
-		function getRowFor(index) {
-			const found = rows.get(index);
+		function getRowFor(name, chipNo) {
+			const found = rows.get(name);
 			if (found) {
 				return found;
 			}
 
 			const tr = document.createElement('tr');
-			tr.innerHTML = '<td></td><td class="text-end"></td><td class="text-end"></td>' +
-				'<td class="text-end"></td><td></td><td class="text-end"></td>';
+			tr.innerHTML = '<td class="my-pick"></td><td></td><td class="text-end"></td><td class="text-end"></td><td class="text-end"></td><td></td><td class="text-end"></td>';
+			const pick = document.createElement('input');
+			pick.type = 'checkbox';
+			pick.name = 'chip';
+			pick.className = 'form-check-input';
+			pick.setAttribute('aria-label', `dump ${name}`);
+			pick.addEventListener('change', () => {
+				if (pick.checked) {
+					chosenChips.add(chipNo);
+				} else {
+					chosenChips.delete(chipNo);
+				}
+				renderFiles();
+				updateButtons();
+			});
+			tr.firstElementChild.appendChild(pick);
 			const button = document.createElement('button');
 			button.type = 'button';
 			button.hidden = true;
@@ -645,13 +839,13 @@
 			// bound once; it asks the receiver for the file only when actually clicked, so no row ever holds on to a megabyte of
 			// stale data
 			button.addEventListener('click', () => {
-				const file = receiver.getFile(index);
+				const file = getFileByName(name);
 				if (file) {
 					saveFile(file);
 				}
 			});
-			const row = {tr, cells: [...tr.children], button};
-			rows.set(index, row);
+			const row = {tr, cells: [...tr.children], button, pick};
+			rows.set(name, row);
 			elemRows.appendChild(tr);
 
 			return row;
@@ -671,12 +865,10 @@
 				if (!file.isComplete) {
 					return {bytes: file.bytes, note: ' (left as captured - a partial dump cannot be made into an image)'};
 				}
-				const image = convertToRomImage(file.bytes);
+				const image = convertToRomImage(file.bytes, {scramble: expected.scramble});
 				return {
 					bytes: image,
-					note: (looksLikeWaveRom(image))
-						? ' (as a ROM image)'
-						: ' (as a ROM image, but the header looks wrong - please also keep the raw capture)',
+					note: (looksLikeWaveRom(image)) ? ' (as a ROM image)' : ' (as a ROM image, but the header looks wrong)',
 				};
 			}
 
@@ -698,7 +890,7 @@
 			elemFound.textContent = 'searching...';
 			elemFound.className = 'form-text';
 			elemConnectionStatus.classList.add('d-none');
-			logLine('looking for the synth on device ids 17 to 32');
+			logLine('looking for the synth on device ids 1 to 32');
 			try {
 				for (const id of [0x10, 0x7f, 0x00, ...Array.from({length: 15}, (_, i) => 0x11 + i), ...Array.from({length: 15}, (_, i) => 0x01 + i)]) {
 					currentOut.send(pingMessage(id));
@@ -735,8 +927,7 @@
 				logLine(`replied on device id ${deviceId - 0x10 + 17}${info}`);
 				// The 32 bytes verbatim as well: this block is not documented, so a reply that is not text is still worth seeing.
 				// A reply of any other size is not the block at all, and saying so beats leaving "not recognized" unexplained.
-				const size = (pings[0].data.length === 32) ? ''
-					: ` (${pings[0].data.length} bytes, not the 32 this block is)`;
+				const size = (pings[0].data.length === 32) ? '' : ` (${pings[0].data.length} bytes, not the 32 this block is)`;
 				logLine(`  system information (40 30 00): ${toHexBytes(pings[0].data)}${size}`);
 				detectedReply = pings[0].data;
 				renderVerdict();
@@ -748,9 +939,14 @@
 		}
 
 		async function startDump() {
-			expected = getCurrentModel();
 			activeTask = 'dump';
+			isDumpStarted = true;
 			receiver = new FileDumpReceiver();
+			bulkReceiver = null;
+			bulkFile = null;
+			bulkPassesDone = 0;
+			doneFiles = [];
+			wantedChips = (expected.family === '88') ? getWantedChips() : null;
 			capturedBytes = [];
 			updateButtons();
 			elemRunning.classList.remove('d-none');
@@ -759,61 +955,213 @@
 			renderFiles();
 
 			try {
-				const names = [...expected.loader, expected.table, expected.trigger];
-				logLine(`GS reset, then the dumper (${names.slice(1, -1).join(' + ')})`);
-				const [...parts] = await Promise.all(names.map(fetchMessages));
-				const trigger = parts.pop();
-
-				if (!await sendMessages(parts.flat(), deviceId)) {
-					finishDump('stopped');
-					return;
-				}
-				logLine(`${parts.flat().length} messages sent. ` +
-					`${expected.files.length} files to come (${formatDuration(expected.seconds)}).`);
-				await sleepMs(SETTLE_MS);
-				if (!activeTask) {
-					finishDump('stopped');
-					return;
-				}
-
-				lastPacketAt = performance.now();
-				if (!await sendMessages(trigger, deviceId)) {
-					finishDump('stopped');
-					return;
-				}
-				logLine('triggered - waiting for the dump');
-
-				while (activeTask) {
-					await sleepMs(250);
-					const files = receiver.getProperties();
-					if (files.length >= expected.files.length && files.every((file) => file.isComplete)) {
-						finishDump('done');
-						return;
-					}
-					const quiet = performance.now() - lastPacketAt;
-					// Not one byte since the trigger: the dumper never started.
-					if (!capturedBytes.length && quiet > ARMED_TIMEOUT_MS) {
-						await reportNoDumperResponse();
-						return;
-					}
-					if (quiet > IDLE_TIMEOUT_MS) {
-						finishDump('nothing more arrived - the dump stopped early');
-					}
-				}
+				await ((expected.family === '88') ? runBulkDump() : runFileDump());
 			} catch (e) {
 				showError(e.message);
 				finishDump('failed');
 			}
 		}
 
+		// One synth sends its dump by itself: send everything, then keep out of the way and listen.
+		async function runFileDump() {
+			const names = [...expected.loader, expected.table, expected.trigger];
+			logLine(`GS reset, then the dumper (${names.slice(1, -1).join(' + ')})`);
+			const [...parts] = await Promise.all(names.map(fetchMessages));
+			const trigger = parts.pop();
+
+			if (!await sendMessages(parts.flat(), deviceId)) {
+				finishDump('stopped');
+				return;
+			}
+			logLine(`${parts.flat().length} messages sent. ` +
+				`${expected.files.length} files to come (${formatDuration(expected.seconds)}).`);
+			await sleepMs(SETTLE_MS);
+			if (!activeTask) {
+				finishDump('stopped');
+				return;
+			}
+
+			lastPacketAt = performance.now();
+			if (!await sendMessages(trigger, deviceId)) {
+				finishDump('stopped');
+				return;
+			}
+			logLine('triggered - waiting for the dump');
+
+			while (activeTask) {
+				await sleepMs(250);
+				const files = getWantedRows(getFileRows());
+				if (files.length > 0 && files.every((file) => file.isComplete)) {
+					finishDump('done');
+					return;
+				}
+				const quiet = performance.now() - lastPacketAt;
+				// Not one byte since the trigger: the dumper never started.
+				if (!capturedBytes.length && quiet > ARMED_TIMEOUT_MS) {
+					await reportNoDumperResponse();
+					return;
+				}
+				if (quiet > IDLE_TIMEOUT_MS) {
+					finishDump('nothing more arrived - the dump stopped early');
+				}
+			}
+		}
+
+		// The other synth cannot send a dump by itself: the dumper leaves one pass in RAM and the page reads it back.
+		// So this is a round trip per pass, and the next pass cannot go out until the answer to this one has arrived.
+		async function runBulkDump() {
+			const regions = toRegions(expected.readRegions);
+			bulkPassBytes = getPassBytes(regions);
+
+			logLine(`GS reset, then the dumper (${expected.loader.at(-1)})`);
+			const parts = (await Promise.all(expected.loader.map(fetchMessages))).flat();
+			if (!await sendMessages(parts, deviceId)) {
+				finishDump('stopped');
+				return;
+			}
+			logLine(`${parts.length} messages sent. ${wantedChips.length} chip(s) to read ` +
+				`(${formatDuration(getSelectedSeconds())}).`);
+			await sleepMs(SETTLE_MS);
+
+			for (const chipNo of wantedChips) {
+				if (!activeTask) {
+					finishDump('stopped');
+					return;
+				}
+				if (!await runOneChip(chipNo, regions)) {
+					return;
+				}
+			}
+			finishDump((activeTask) ? 'done' : 'stopped');
+		}
+
+		// One chip select, pass by pass. Returns false when the dump should not go on.
+		async function runOneChip(chipNo, regions) {
+			const file = expected.files[chipNo];
+			const passes = planPasses(file.size, bulkPassBytes);
+			bulkReceiver = new BulkDumpReceiver(regions);
+			bulkFile = file;
+			bulkPassesDone = 0;
+			logLine(`${file.name}: ${passes.length} passes of ${bulkPassBytes} bytes`);
+			renderFiles();
+
+			// The file header first. It is written and read straight back without calling the dumper, so an answer
+			// here says the synth is listening even when the ROM is not patched.
+			if (!await runOnePass(buildFileHeaderPass(regions, {size: file.size, passCount: passes.length, name: file.name}))) {
+				await reportNoDumperResponse();
+				return false;
+			}
+
+			let missedCount = 0;
+			for (const [i, pass] of passes.entries()) {
+				if (!activeTask) {
+					break;
+				}
+				const isDone = await runOnePass(buildPass(chipNo, pass, regions, {bankBits: expected.bankBits}));
+				if (!activeTask) {
+					break;		// stopped part way, which is not the same as a pass that did not answer
+				}
+				if (isDone) {
+					missedCount = 0;
+				} else if (i === 0 && bulkReceiver.passes.length <= 1) {
+					// The header came back but the first call did not: the dumper is not there.
+					await reportNoDumperResponse();
+					return false;
+				} else {
+					missedCount++;
+					logLine(`  pass ${i + 1} of ${passes.length} did not answer - going on`);
+					if (missedCount >= MAX_MISSED_PASSES) {
+						finishDump(`${missedCount} passes in a row did not answer - the dump stopped early`);
+						return false;
+					}
+				}
+				bulkPassesDone = i + 1;
+				scheduleRender();
+			}
+			finishChip();
+
+			return Boolean(activeTask);
+		}
+
+		// The pause after a message: its own, or at least long enough to put it on the wire. What follows the last
+		// message of a pass is the answer, which is waited for rather than paced.
+		function getPauseMs(entry, isLast) {
+			const wireMs = calcTransferMs(entry.bytes.length);
+
+			return (isLast) ? wireMs : Math.max(entry.gapMs, wireMs);
+		}
+
+		// Hand the whole pass to the MIDI port at once, each message with the time it is to go out. The port sends
+		// them itself, so the gaps are exact and a tab in the background cannot stretch them. Returns the time the
+		// last of it is on the wire.
+		function sendPass(messages) {
+			let at = performance.now();
+			for (const [i, entry] of messages.entries()) {
+				currentOut.send(rewriteDeviceId(entry.bytes, deviceId), at);
+				at += getPauseMs(entry, i === messages.length - 1);
+			}
+
+			return at;
+		}
+
+		// Wait for the pass to fill up. The replies themselves drive this, so the only timer involved is the one
+		// that gives up, and a tab in the background is no slower than one in front.
+		function waitForPass(passNo, until) {
+			return new Promise((resolve) => {
+				let timer = null;
+				const settle = (isDone) => {
+					clearTimeout(timer);
+					onPassData = null;
+					cancelPassWait = null;
+					resolve(isDone);
+				};
+				onPassData = () => {
+					const pass = bulkReceiver.passes[passNo];
+					if (pass && pass.received >= bulkReceiver.passSize) {
+						settle(true);
+					}
+				};
+				cancelPassWait = () => settle(false);
+				timer = setTimeout(() => settle(false), Math.max(0, until - performance.now()));
+				onPassData();
+			});
+		}
+
+		function runOnePass(messages) {
+			if (!activeTask) {
+				return Promise.resolve(false);
+			}
+			// Which pass this will be, counted on the receiver rather than here: a pass that never answers is never
+			// added, so the two would drift apart after the first one that goes missing.
+			const passNo = bulkReceiver.passes.length;
+
+			return waitForPass(passNo, sendPass(messages) + PASS_TIMEOUT_MS);
+		}
+
+		// Assemble what the passes add up to. This copies the whole file, so it happens once a chip is over and not
+		// on every redraw.
+		function finishChip() {
+			if (!bulkReceiver?.passes.length) {
+				bulkReceiver = null;
+				return;
+			}
+			doneFiles.push(getBulkDumpResult(bulkReceiver, {size: bulkFile.size, name: bulkFile.name}));
+			bulkReceiver = null;
+			renderFiles();
+		}
+
 		function finishDump(why) {
 			activeTask = null;
+			cancelPassWait?.();
+			currentOut?.clear?.();		// drop whatever of this pass has not gone out yet
 			elemRunning.classList.add('d-none');
 			elemStop.classList.add('d-none');
 			updateButtons();
+			finishChip();
 			renderFiles();
-			const files = receiver.getProperties();
-			const count = (expected) ? `${files.length} of ${expected.files.length}` : String(files.length);
+			const files = getWantedRows(getFileRows());
+			const doneCount = files.filter((file) => file.isComplete).length;
+			const count = `${doneCount} of ${files.length}`;
 			logLine(`${why}: ${count} file(s), ${files.reduce((p, file) => p + file.received, 0)} bytes`);
 			for (const file of files) {
 				for (const error of file.errors.slice(0, 3)) {
@@ -841,8 +1189,7 @@
 		elemStart.addEventListener('click', async () => {
 			if (concern && !await confirmAction({
 				title: 'Dump anyway?',
-				body: `${concern} This dump takes about ${formatDuration(getCurrentModel().seconds)} ` +
-					'and cannot be paused or resumed once started.',
+				body: `${concern} This dump takes about ${formatDuration(getSelectedSeconds())} and cannot be paused or resumed once started.`,
 				ok: 'Dump anyway', cancel: 'Go back',
 			})) {
 				return;
@@ -854,13 +1201,13 @@
 			if (activeTask !== 'dump') {
 				return;
 			}
-			const files = receiver.getProperties();
+			const files = getWantedRows(getFileRows());
 			const completeCount = files.filter((file) => file.isComplete).length;
 			const isConfirmed = await confirmAction({
 				title: 'Stop the dump?',
-				body: `${completeCount} of ${expected.files.length} files are done. If you stop now, ` +
-					'anything still arriving will be lost. There is no way to resume - you would need to start the whole dump ' +
-					`again (about ${formatDuration(expected.seconds)}).`,
+				body: `${completeCount} of ${files.length} files are done. If you stop now, ` +
+					'anything still arriving will be lost. There is no way to resume what is part way - you would need to ' +
+					`start that file again (${formatDuration(getSelectedSeconds())} for everything selected).`,
 				ok: 'Stop the dump', cancel: 'Keep going',
 			});
 			if (isConfirmed && activeTask === 'dump') {
@@ -877,21 +1224,22 @@
 		});
 
 		elemSaveAll.addEventListener('click', () => {
-			const files = receiver.getProperties();
+			const files = getFileRows();
 			let saved = 0;
-			for (const [i, file] of files.entries()) {
+			for (const file of files) {
 				if (!file.isComplete) {
 					continue;
 				}
-				saveFile(receiver.getFile(i));
+				saveFile(getFileByName(file.name));
 				saved++;
 			}
 			for (const file of files) {
-				if (file.isComplete) {
+				// Nothing to say about a file nobody asked for.
+				if (file.isComplete || (!file.isWanted && !file.received)) {
 					continue;
 				}
-				logLine(`skipped ${file.name}: ${file.received} of ${file.size} bytes${(activeTask)
-					? ' - still receiving' : ' - use "Save partial" on its own row'}`);
+				logLine(`skipped ${file.name}: ${file.received} of ${file.size} bytes${(activeTask) ? ' - still receiving'
+					: (file.received) ? ' - use "Save partial" on its own row' : ' - nothing arrived'}`);
 			}
 			if (!saved) {
 				logLine('nothing saved - no file has finished yet');
@@ -942,7 +1290,11 @@
 				isFirstModel = false;
 			}
 
-			elemModels.addEventListener('change', renderVerdict);
+			elemModels.addEventListener('change', () => {
+				renderVerdict();
+				chooseModel();
+			});
+			chooseModel();
 
 			if (!navigator.requestMIDIAccess) {
 				showError('This browser does not support Web MIDI.\n\n' +
