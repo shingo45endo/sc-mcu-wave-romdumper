@@ -308,8 +308,8 @@
 			"seconds": 8012
 		},
 		"wave-4m4m4m4m4m": {
-			"note": "4 MiB in each of five chip selects, read through the tone generator. The chip select encoding and the scrambling are not confirmed",
-			"isLayoutConfirmed": false,
+			"note": "4 MiB in each of five chip selects, read through the tone generator",
+			"isLayoutConfirmed": true,
 			"bankBits": 2,
 			"chipSelectSize": 4194304,
 			"files": [
@@ -603,7 +603,7 @@
 			"config": "wave-4m4m4m4m4m",
 			"dumper": "sc88pro",
 			"scramble": "sc88",
-			"isDumpTested": false,
+			"isDumpTested": true,
 			"loader": [
 				"00-gsreset.syx",
 				"01-dumper-sc88pro.syx"
