@@ -52,11 +52,9 @@ The SC-88 family gets the data back another way. Its main CPU has no MIDI Out of
 | --------------- | ---------------------- | ------ | ------------------ | ------------------------ |
 | Roland SC-88    | wave 2 MiB x 4         | H8/510 | read back from RAM | not yet                  |
 | Roland SC-88VL  | wave 2 MiB x 4         | H8/510 | read back from RAM | done                     |
-| Roland SC-88Pro | wave 4 MiB x 5         | H8/510 | read back from RAM | not yet                  |
+| Roland SC-88Pro | wave 4 MiB x 5         | H8/510 | read back from RAM | done                     |
 
-One chip takes about half an hour, and the chips are offered one at a time. **The user tone banks and user drum sets are lost**: the dumper uses them as its buffer, and nothing puts them back.
-
-**The SC-88Pro entry is not confirmed.** If it reads the wrong addresses, the dump does not look like a ROM image, and the tools say so.
+One chip takes about half an hour on the SC-88 and SC-88VL, and about an hour on the SC-88Pro. The chips are offered one at a time. **The user tone banks and user drum sets are lost**: the dumper uses them as its buffer, and nothing puts them back.
 
 
 How the patch works

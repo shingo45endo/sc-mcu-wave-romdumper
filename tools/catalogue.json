@@ -36,11 +36,11 @@
 			"isLayoutConfirmed": true
 		},
 		"wave-4m4m4m4m4m": {
-			"note": "4 MiB in each of five chip selects, read through the tone generator. The chip select encoding and the scrambling are not confirmed",
+			"note": "4 MiB in each of five chip selects, read through the tone generator",
 			"chips": [4194304, 4194304, 4194304, 4194304, 4194304],
 			"chipSelectSize": 4194304,
 			"bankBits": 2,
-			"isLayoutConfirmed": false
+			"isLayoutConfirmed": true
 		}
 	},
 	"models": {
@@ -177,7 +177,7 @@
 			"family": "88",
 			"config": "wave-4m4m4m4m4m",
 			"dumper": "sc88pro",
-			"isDumpTested": false,
+			"isDumpTested": true,
 			"readRegions": [
 				{"addr": "28 00 00", "size": 1408},
 				{"addr": "28 10 00", "size": 1408},

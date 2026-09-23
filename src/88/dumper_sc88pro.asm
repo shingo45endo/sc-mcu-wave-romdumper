@@ -4,10 +4,7 @@
 ; The same code as the SC-88 and the SC-88VL. What moves is where the RAM and the tone generator answer, and with
 ; them the whole bulk dump area, which sits H'3000 lower.
 ;
-; Wave ROM: 4 MiB in each of five chip selects, which is more than the SC-88 has. Untested: there is no machine here.
-;
-; The Pro also has USER PATCH PART, 8192 bytes in one run, which would carry half again as much per pass. Untested
-; as well, so this keeps to the user tone banks and drum sets that the whole family has.
+; Wave ROM: 4 MiB in each of five chip selects, which is more than the SC-88 has.
 ;
 ; Assemble with the Macroassembler AS, or just run "make":
 ;
