@@ -144,6 +144,8 @@
 				'That address is past the end of the image.',
 			'table-entry-not-found':
 				'The jump table entry that points at the handler is not in this image.',
+			'table-entry-ambiguous':
+				'The jump table has more than one entry that points at the handler, so it cannot tell which one to use.',
 			'bulk-table-not-found':
 				'The table of the areas this synth hands back over MIDI is not in this image.',
 			'bulk-table-ambiguous':
@@ -309,13 +311,11 @@
 			if (info.hook.isOk) {
 				rows.push(['Read handler', `H'${toHex(info.hook.read, 5)} (left alone)`]);
 			}
-			if (info.entries.isOk) {
-				for (const [i, entry] of info.entries.list.entries()) {
-					rows.push([(i === 0) ? 'Jump table entry' : '',
-						`H'${toHex(entry.offset, 5)}, parameter H'${toHex(entry.paramNo, 4)}`, 'text-success']);
-				}
+			if (info.entry.isOk) {
+				rows.push(['Jump table entry',
+					`H'${toHex(info.entry.offset, 5)}, parameter H'${toHex(info.entry.paramNo, 4)}`, 'text-success']);
 			} else if (info.hook.isOk) {
-				rows.push(['Jump table entry', getReasonText(info.entries), 'text-danger']);
+				rows.push(['Jump table entry', getReasonText(info.entry), 'text-danger']);
 			}
 			rows.push(['Load area',
 				(info.bulk.isOk) ? `H'${toHex(info.bulk.load.addr, 4)}, ${info.bulk.load.size} bytes (bulk dump ${toHexBytes(info.bulk.load.addr3)})` : getReasonText(info.bulk),
@@ -326,7 +326,7 @@
 			if (info.loadAddr !== null) {
 				rows.push(['Load address', `H'${toHex(info.loadAddr, 6)}`]);
 			}
-			if (info.entries.isOk) {
+			if (info.entry.isOk) {
 				const how = (info.stub.how === 'existing')
 					? 'already patched; the stub is there'
 					: `the largest gap between two used areas, ${info.stub.runSize} bytes of H'FF`;
@@ -405,11 +405,11 @@
 		// expects its own. That is what makes it longer than the other family's.
 		function formatStub88(result) {
 			const s = result.stub;
-			const entries = result.entries.
-				map((entry) => `H'${toHex(entry.offset, 5)}  ${toHexBytes(entry.replaced)} -> ${toHexBytes(entry.written)}   the jump table entry, parameter H'${toHex(entry.paramNo, 4)}`).
-				join('\n');
+			const {entry} = result;
+			const entryText = `H'${toHex(entry.offset, 5)}  ${toHexBytes(entry.replaced)} -> ${toHexBytes(entry.written)}   the jump table entry,` +
+				` parameter H'${toHex(entry.paramNo, 4)}`;
 
-			return `${entries}\n\n` +
+			return `${entryText}\n\n` +
 				`H'${toHex(result.trampolineAt, 5)}  ${toHexBytes(s.slice(0, 2)).padEnd(18)}STC.B   DP,@-SP\n` +
 				`         ${toHexBytes(s.slice(2, 5)).padEnd(18)}LDC.B   #H'${toHex(result.ramPage)},DP\n` +
 				`         ${toHexBytes(s.slice(5, 11)).padEnd(18)}CMP:G.W #H'${toHex(MAGIC_WORD, 4)},@H'${toHex((result.loadAddr + 2) & 0xffff, 4)}:16\n` +

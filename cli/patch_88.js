@@ -8,7 +8,6 @@
 	  --addr        16 bit RAM address to jump to, hex (default: read out of the ROM's bulk dump table)
 	  --page        the page that address sits in, hex (default: detected)
 	  --free        ROM offset to put the trampoline at, hex (default: detected)
-	  --param       parameter number of the one table entry to patch, hex (default: every entry found)
 	  -n, --dry-run analyze only, write nothing
 */
 
@@ -29,6 +28,8 @@ const REASON_TEXTS = {
 		() => 'no hook',
 	'table-entry-not-found':
 		() => 'the parameter table entry for 40 1x 17 was not found',
+	'table-entry-ambiguous':
+		(d) => `the parameter table has ${d.matchCount} entries for 40 1x 17 - ambiguous.`,
 	'no-table-entry':
 		() => 'no parameter table entry',
 	'bulk-table-not-found':
@@ -51,8 +52,6 @@ const REASON_TEXTS = {
 		() => 'the trampoline must be in the same bank as the handler',
 	'trampoline-does-not-fit':
 		() => 'trampoline does not fit',
-	'no-entry-with-that-parameter-number':
-		(d) => `no table entry has parameter number H'${toHex(d.paramNo, 4)}`,
 };
 
 function getReasonText(what) {
@@ -81,13 +80,11 @@ function describeAnalysis(result) {
 		lines.push(`hook site       NOT FOUND - ${getReasonText(info.hook)}`);
 	}
 
-	if (info.entries.isOk) {
-		for (const [i, entry] of info.entries.list.entries()) {
-			lines.push(`${((i === 0) ? 'table entry' : '').padEnd(16)}H'${toHex(entry.offset, 5)}  ` +
-				`parameter H'${toHex(entry.paramNo, 4)}  handler H'${toHex(entry.write, 4)}`);
-		}
+	if (info.entry.isOk) {
+		lines.push(`table entry     H'${toHex(info.entry.offset, 5)}  ` +
+			`parameter H'${toHex(info.entry.paramNo, 4)}  handler H'${toHex(info.entry.write, 4)}`);
 	} else if (info.hook.isOk) {
-		lines.push(`table entry     NOT FOUND - ${getReasonText(info.entries)}`);
+		lines.push(`table entry     NOT FOUND - ${getReasonText(info.entry)}`);
 	}
 
 	if (info.bulk.isOk) {
@@ -120,17 +117,16 @@ function describeAnalysis(result) {
 		const at = (result.trampolineAt === undefined) ? info.stub.at : result.trampolineAt;
 		const source = (at === info.stub.at) ? why : `given; the detected one is H'${toHex(info.stub.at, 5)}`;
 		lines.push(`stub address    H'${toHex(at, 5)}  (${source})`);
-	} else if (info.entries.isOk && info.stub && info.stub.reasonCode) {
+	} else if (info.entry.isOk && info.stub && info.stub.reasonCode) {
 		lines.push(`stub address    NOT FOUND - ${getReasonText(info.stub)}`);
 	}
 
 	if (result.rom) {
 		lines.push('');
-		for (const entry of result.entries) {
-			lines.push(`table entry     H'${toHex(entry.offset, 5)}: ` +
-				`${toHexBytes(entry.replaced)} -> ${toHexBytes(entry.written)}  ` +
-				`(parameter H'${toHex(entry.paramNo, 4)})`);
-		}
+		const {entry} = result;
+		lines.push(`table entry     H'${toHex(entry.offset, 5)}: ` +
+			`${toHexBytes(entry.replaced)} -> ${toHexBytes(entry.written)}  ` +
+			`(parameter H'${toHex(entry.paramNo, 4)})`);
 		lines.push(`trampoline at   H'${toHex(result.trampolineAt, 5)}`);
 		const s = result.stub;
 		lines.push(`  ${toHexBytes(s.slice(0, 2)).padEnd(18)}STC.B   DP,@-SP`);
@@ -155,7 +151,7 @@ function printUsageAndExit(message) {
 		process.stderr.write(`patch_88: ${message}\n\n`);
 	}
 	process.stderr.write('usage: node cli/patch_88.js <rom.bin> [-o out.bin] [--addr HHHH] [--page HH]\n' +
-		'                             [--free HHHHH] [--param HHHH] [-n]\n');
+		'                             [--free HHHHH] [-n]\n');
 
 	process.exit((message) ? 2 : 0);
 }
@@ -187,7 +183,6 @@ try {
 			'addr': {type: 'string'},
 			'page': {type: 'string'},
 			'free': {type: 'string'},
-			'param': {type: 'string'},
 			'dry-run': {type: 'boolean', short: 'n', default: false},
 		},
 		allowPositionals: true,
@@ -204,7 +199,6 @@ const isDryRun = values['dry-run'];
 const addr = parseHexOption(values, 'addr');
 const ramPage = parseHexOption(values, 'page');
 const free = parseHexOption(values, 'free');
-const paramNo = parseHexOption(values, 'param');
 
 if (positionals.length > 1) {
 	printUsageAndExit('more than one input file');
@@ -226,7 +220,6 @@ const patchOptions = {
 	...((addr !== undefined) ? {loadAddr: addr} : {}),
 	...((ramPage !== undefined) ? {ramPage} : {}),
 	...((free !== undefined) ? {freeOffset: free} : {}),
-	...((paramNo !== undefined) ? {paramNo} : {}),
 };
 
 // A dry run has to predict the real run, so it patches in memory with the same options and reports that. Only the
