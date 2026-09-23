@@ -380,10 +380,10 @@
 
 		// How long one chip takes here. The catalogue's own figure is for the prepared files, which pace themselves
 		// differently and leave room for an answer this page waits for, so it would be a tenth too long.
-		function getChipSeconds(file) {
-			const regions = toRegions(expected.readRegions);
+		function calcChipSeconds(model, file) {
+			const regions = toRegions(model.readRegions);
 			const passBytes = getPassBytes(regions);
-			const one = buildPass(0, {at: 0, size: passBytes}, regions, {bankBits: expected.bankBits});
+			const one = buildPass(0, {at: 0, size: passBytes}, regions, {bankBits: model.bankBits});
 			const passMs = one.reduce((total, entry, i) => (total + getPauseMs(entry, i === one.length - 1)), 0) + ANSWER_MS;
 			// One pass more than the wave ROM needs, for the file header.
 			const passCount = planPasses(file.size, passBytes).length + 1;
@@ -391,11 +391,18 @@
 			return Math.round(passCount * passMs / 1000);
 		}
 
+		// How long every file of this model takes here, for the list of synths.
+		function calcModelSeconds(model) {
+			return (model.family !== '88')
+				? model.seconds
+				: model.files.reduce((total, file) => (total + calcChipSeconds(model, file)), 0);
+		}
+
 		// How long the dump the user has actually asked for takes.
 		function getSelectedSeconds() {
 			const model = getCurrentModel();
 			if (model?.family !== '88') {
-				return model.seconds;
+				return calcModelSeconds(model);
 			}
 
 			return getWantedChips().reduce((total, chipNo) => (total + chipSeconds[chipNo]), 0);
@@ -634,7 +641,7 @@
 			// The SC-88 family is read one chip select at a time, half an hour each, so let the user pick which ones
 			// to do now. The other family sends every file in one go, and has nothing to choose.
 			chosenChips = new Set((expected?.family === '88') ? expected.files.map((_, chipNo) => chipNo) : []);
-			chipSeconds = (expected?.family === '88') ? expected.files.map(getChipSeconds) : [];
+			chipSeconds = (expected?.family === '88') ? expected.files.map((file) => calcChipSeconds(expected, file)) : [];
 			for (const [, row] of rows) {
 				row.tr.remove();
 			}
@@ -974,7 +981,7 @@
 				return;
 			}
 			logLine(`${parts.flat().length} messages sent. ` +
-				`${expected.files.length} files to come (${formatDuration(expected.seconds)}).`);
+				`${expected.files.length} files to come (${formatDuration(calcModelSeconds(expected))}).`);
 			await sleepMs(SETTLE_MS);
 			if (!activeTask) {
 				finishDump('stopped');
@@ -1283,7 +1290,7 @@
 							<span class="badge text-bg-success ms-1 d-none" data-badge="${key}">matches your synth</span>${caution}
 							<span class="d-flex flex-wrap align-items-center gap-2 small text-body-secondary">
 								${buildRomFigure(model)}
-								<span class="text-nowrap ms-auto"><span class="visually-hidden">, </span>${formatDuration(model.seconds)}</span>
+								<span class="text-nowrap ms-auto"><span class="visually-hidden">, </span>${formatDuration(calcModelSeconds(model))}</span>
 							</span>
 						</label>
 					</div>`);
