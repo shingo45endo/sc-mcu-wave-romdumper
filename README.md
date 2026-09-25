@@ -33,6 +33,7 @@ Supported Models
 | Roland SC-55                | MCU 32 KiB, wave 1 MiB x 3     | H8/532 | its own SCI  | done                     |
 | Roland SC-155               | MCU 32 KiB, wave 1 MiB x 3     | H8/532 | its own SCI  | not yet                  |
 | Roland SC-55mkII, SC-55ST/K | MCU 32 KiB, wave 2 MiB + 1 MiB | H8/532 | sub-CPU      | done                     |
+| Roland SC-50                | MCU 32 KiB, wave 2 MiB         | H8/532 | sub-CPU      | not yet                  |
 | Roland SC-33                | MCU 32 KiB, wave 2 MiB         | H8/532 | its own SCI  | done                     |
 | Boss DS-330                 | MCU 32 KiB, wave 2 MiB         | H8/532 | its own SCI  | not yet                  |
 | Roland SD-35                | MCU 32 KiB, wave 1 MiB         | H8/532 | its own SCI  | done                     |

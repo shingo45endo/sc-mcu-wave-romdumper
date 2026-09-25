@@ -73,6 +73,12 @@
 				"GS-28 VER=2.00  SC              "
 			]
 		},
+		"sc-50": {
+			"label": "Roland SC-50",
+			"config": "mcu-wave-2m",
+			"dumper": "subcpu",
+			"isDumpTested": false
+		},
 		"sc-33": {
 			"label": "Roland SC-33",
 			"config": "mcu-wave-2m",

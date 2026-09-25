@@ -1,8 +1,8 @@
 ;==========================================================================
 ; Transmit module: the sub-CPU, the M37409
 ;
-; In the SC-55mkII family (the mkII, the ST, and the K), a second processor handles MIDI, and the H8/532's SCI is not
-; connected to anything. The two processors talk through a shared RAM window at page 0 H'EC00.
+; In the SC-55mkII family (the mkII, the SC-50, and the the ST/K), a second processor handles MIDI, and the H8/532's
+; SCI is not connected to anything. The two processors talk through a shared RAM window at page 0 H'EC00.
 ; The firmware keeps a 256-byte output ring there, and a handover routine feeds it to the sub-CPU sixteen bytes at a
 ; time.
 ;
@@ -36,8 +36,7 @@
 ;   SMSEM   bit 7 is the window's semaphore
 ;   SMKICK  a write here interrupts the sub-CPU
 ;
-; Everything but TXGATE is the same across the SC-55mkII and SC-55ST/K ROMs, which is every model known to
-; transmit this way.
+; Everything but TXGATE is the same across the SC-55mkII and SC-55ST/K ROMs. This has not been checked on the SC-50.
 ;
 ; Interrupts must stay ENABLED for the whole dump - the handler that sets TXGATE is an interrupt.
 ; They are masked only around the ring pointers and the handover itself, which is also why dumper_body.inc saves and

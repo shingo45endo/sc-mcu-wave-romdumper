@@ -2,7 +2,7 @@
 ; sc-mcu-wave-romdumper - dumper for the SC-55mkII family, whose sub-CPU puts the bytes on MIDI Out
 ;
 ; Models:
-;   SC-55mkII, SC-55ST/K, SC-55K
+;   SC-55mkII, SC-50, SC-55ST/K, SC-55K
 ;
 ; Body, transmit module and wave ROM read module, in that order. Everything model specific is either in the file
 ; table or in one of the modules.

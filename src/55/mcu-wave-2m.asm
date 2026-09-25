@@ -2,6 +2,7 @@
 ; File table - 2 MiB, the first slot only
 ;
 ; Models:
+;   - Roland SC-50
 ;   - Roland SC-33
 ;   - Boss DS-330
 ;
