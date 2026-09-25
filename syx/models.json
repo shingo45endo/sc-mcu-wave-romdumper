@@ -403,6 +403,19 @@
 				"GS-28 VER=2.00  SC              "
 			]
 		},
+		"sc-50": {
+			"label": "Roland SC-50",
+			"config": "mcu-wave-2m",
+			"dumper": "subcpu",
+			"scramble": "sc55",
+			"isDumpTested": false,
+			"loader": [
+				"00-gsreset.syx",
+				"01-body.syx",
+				"02-tx-subcpu.syx"
+			],
+			"dump": "dump-mcu-wave-2m-subcpu.syx"
+		},
 		"sc-33": {
 			"label": "Roland SC-33",
 			"config": "mcu-wave-2m",

@@ -1,7 +1,7 @@
 ;==========================================================================
 ; Transmit module: the sub-CPU, the M37409
 ;
-; In the SC-55mkII family (the mkII, the SC-50, and the the ST/K), a second processor handles MIDI, and the H8/532's
+; In the SC-55mkII family (the mkII, the SC-50, and the ST/K), a second processor handles MIDI, and the H8/532's
 ; SCI is not connected to anything. The two processors talk through a shared RAM window at page 0 H'EC00.
 ; The firmware keeps a 256-byte output ring there, and a handover routine feeds it to the sub-CPU sixteen bytes at a
 ; time.
