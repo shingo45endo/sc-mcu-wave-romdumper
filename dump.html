@@ -185,11 +185,10 @@
 
 	<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
 	<script type="module">
-		import {BulkDumpReceiver} from './lib/bulk_dump.js';
-		import {getBulkDumpResult} from './lib/dump_result.js';
+		import {BulkDumpReceiver, getBulkDumpResult} from './lib/bulk_dump.js';
 		import {FileDumpReceiver} from './lib/file_dump.js';
 		import {formatDuration, toHexBytes} from './lib/format.js';
-		import {pingMessage, parsePingReplyData, parsePingReplyDevice, rewriteDeviceId, toSystemInfoText, evaluateSystemInfo} from './lib/identify.js';
+		import {parsePingReplyData, parsePingReplyDevice, pingMessage, rewriteDeviceId} from './lib/gs_message.js';
 		import {loadCapture, calcTransferMs} from './lib/sysex.js';
 		import {ANSWER_MS, buildFileHeaderPass, buildPass, getPassBytes, planPasses, toRegions} from './lib/wave_plan_88.js';
 		import {convertToRomImage, looksLikeWaveRom} from './lib/wave_scramble.js';
@@ -200,6 +199,7 @@
 		};
 
 		const SYX_DIR = './syx/';
+		const SYSTEM_INFO_SIZE = 0x20;
 
 		const SEND_GAP_MS = 250;
 		const PING_GAP_MS = 60;
@@ -415,6 +415,65 @@
 		// --------------------------------
 		// what answered
 		// --------------------------------
+		function evaluateSystemInfo(bytes, {models, notOffered = {}, selected} = {}) {
+			if (!bytes || !bytes.length) {
+				return {kind: 'none'};
+			}
+			const text = toSystemInfoText(bytes);
+			// The block is 32 bytes. Anything else is not one, whatever it reads as.
+			if (bytes.length !== SYSTEM_INFO_SIZE) {
+				return {kind: 'unknown', text};
+			}
+			const keys = findMatchingModels(models, (entry) => bytesMatch(bytes, entry));
+			if (!keys.length) {
+				return {kind: 'unknown', text};
+			}
+
+			return buildAnswer(models, keys, {notOffered, selected, text});
+		}
+
+		function toSystemInfoText(bytes) {
+			let text = '';
+			for (const byte of bytes) {
+				text += (byte >= 0x20 && byte < 0x7f) ? String.fromCharCode(byte) : ' ';
+			}
+			return text.trim();
+		}
+
+		// Every model an entry test picks out, in catalogue order.
+		function findMatchingModels(models, test) {
+			return Object.keys(models).filter((key) => (models[key].systemInfo ?? []).some((entry) => test(entry)));
+		}
+
+		// models.json carries each block as its 32 bytes, so an entry is compared as it is.
+		function bytesMatch(bytes, entry) {
+			if (bytes.length !== entry.length) {
+				return false;
+			}
+			for (let i = 0; i < entry.length; i++) {
+				if (bytes[i] !== entry.charCodeAt(i)) {
+					return false;
+				}
+			}
+
+			return true;
+		}
+
+		function buildAnswer(models, keys, {notOffered, selected, text}) {
+			// Every key agrees about the layout - see tools/system_info.js - so the first one speaks for all of them.
+			const {config} = models[keys[0]];
+			const labels = keys.map((key) => models[key].label);
+
+			// Every model this block names is one the caller does not offer.
+			const shownKeys = keys.filter((key) => !notOffered[key]);
+			if (!shownKeys.length) {
+				return {kind: 'elsewhere', keys, labels, config, reason: notOffered[keys[0]], text};
+			}
+
+			const isAgreement = (selected && models[selected] && (models[selected].config === config));
+			return {kind: (isAgreement) ? 'match' : 'mismatch', keys, labels, config, text};
+		}
+
 		function renderVerdict() {
 			for (const element of elemModels.querySelectorAll('[data-badge]')) {
 				element.classList.add('d-none');

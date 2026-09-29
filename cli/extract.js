@@ -20,9 +20,9 @@ import process from 'node:process';
 import url from 'node:url';
 import util from 'node:util';
 
-import {BulkDumpReceiver, toAddress} from '../lib/bulk_dump.js';
-import {FileDumpReceiver} from '../lib/file_dump.js';
-import {getBulkDumpResult, getFileDumpResults} from '../lib/dump_result.js';
+import {BulkDumpReceiver, getBulkDumpResult} from '../lib/bulk_dump.js';
+import {FileDumpReceiver, getFileDumpResults} from '../lib/file_dump.js';
+import {toAddress} from '../lib/gs_message.js';
 import {loadCapture} from '../lib/sysex.js';
 
 const ROOT = path.join(path.dirname(url.fileURLToPath(import.meta.url)), '..');

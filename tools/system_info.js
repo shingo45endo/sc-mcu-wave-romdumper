@@ -1,10 +1,9 @@
-// Checking the system information blocks a catalogue claims, for every family's generator.
+// Checking the system information blocks a catalogue claims, and writing them the way models.json carries them,
+// for every family's generator.
 //
 // The blocks are what names a synth, and both things that can go wrong with them are silent: an editor that trims
 // the trailing spaces off a readable entry breaks every match, and a block that two wave ROM layouts both claim has
 // one of them picked for it. So the build stops rather than publish either.
-
-import {toSystemInfoBlock} from '../lib/identify.js';
 
 const BLOCK_SIZE = 32;
 
@@ -39,4 +38,19 @@ export function readClaimedBlocks(models) {
 	}
 
 	return seen;
+}
+
+// The 32 bytes a catalogue entry stands for. An entry is normally those bytes as characters; 64 hex digits are
+// the way to write a block that is not printable, and no synth has needed that yet. models.json carries the bytes
+// themselves, so the page does not have to know either way of writing them.
+export function toSystemInfoBlock(entry) {
+	if (entry.length === 64 && (/^[0-9a-fA-F]{64}$/u).test(entry)) {
+		const bytes = [];
+		for (let i = 0; i < 64; i += 2) {
+			bytes.push(parseInt(entry.slice(i, i + 2), 16));
+		}
+		return String.fromCharCode(...bytes);
+	}
+
+	return entry;
 }

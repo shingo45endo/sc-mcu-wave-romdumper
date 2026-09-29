@@ -27,7 +27,7 @@ import {GAP_ANSWER_MS, GAP_REQUEST_MS, GAP_TRIGGER_MS, buildFileHeaderPass, buil
 import {gsResetMessage} from '../lib/gs_message.js';
 import {buildBulkMessages} from './bulk_load.js';
 import {writeSmf} from './smf_write.js';
-import {checkSystemInfo, readClaimedBlocks} from './system_info.js';
+import {checkSystemInfo, readClaimedBlocks, toSystemInfoBlock} from './system_info.js';
 
 const ROOT = path.join(path.dirname(url.fileURLToPath(import.meta.url)), '..');
 
@@ -191,7 +191,7 @@ function main() {
 			loader: ['00-gsreset.syx', `${loaderStem}.syx`],
 			readRegions: model.readRegions,
 			dump: files.map((file) => file.dump),
-			...(model.systemInfo) ? {systemInfo: model.systemInfo} : {},
+			...(model.systemInfo) ? {systemInfo: model.systemInfo.map(toSystemInfoBlock)} : {},
 		};
 	}
 

@@ -56,9 +56,9 @@ build/88/%.p: src/88/%.asm $(INC88) | build/88
 build/%.bin: build/%.p
 	$(P2BIN) $< $@ $(P2BINFLAGS)
 
-$(STAMP): $(BIN) tools/mksyx_55.js tools/mksyx_88.js tools/bulk_load.js tools/file_table_55.js \
-          tools/smf_write.js src/55/dumper.inc tools/catalogue.json \
-          lib/format.js lib/sysex.js lib/wave_plan_88.js lib/bulk_dump.js lib/gs_message.js
+$(STAMP): $(BIN) tools/mksyx_55.js tools/mksyx_88.js tools/bulk_load.js tools/smf_write.js tools/system_info.js \
+          src/55/dumper.inc tools/catalogue.json \
+          lib/format.js lib/sysex.js lib/wave_plan_88.js lib/bulk_dump.js lib/gs_message.js lib/hook.js
 	@rm -f syx/*.syx syx/*.mid
 	$(NODE) tools/mksyx_55.js
 	$(NODE) tools/mksyx_88.js

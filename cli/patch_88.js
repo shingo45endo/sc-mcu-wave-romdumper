@@ -16,7 +16,7 @@ import process from 'node:process';
 import util from 'node:util';
 
 import {toHex, toHexBytes} from '../lib/format.js';
-import {MAGIC_WORD, triggerSysEx} from '../lib/hook.js';
+import {MAGIC_WORD, triggerMessage} from '../lib/hook.js';
 import {analyzeRom, patchRom} from '../lib/patcher_88.js';
 
 const REASON_TEXTS = {
@@ -140,7 +140,7 @@ function describeAnalysis(result) {
 		lines.push(`CRC32 after     ${toHex(result.crc32, 8)}${
 			(result.isUnchanged) ? '  (unchanged: it was already patched like this)' : ''}`);
 		lines.push('');
-		lines.push(`trigger SysEx   ${toHexBytes(triggerSysEx())}`);
+		lines.push(`trigger SysEx   ${toHexBytes(triggerMessage())}`);
 	}
 
 	return lines.join('\n');
@@ -258,7 +258,7 @@ process.stderr.write(`${describeAnalysis(result)}\n`);
 // it is already done.
 if (result.isUnchanged) {
 	process.stderr.write(`\npatch_88: already patched at H'${toHex(result.trampolineAt, 5)} -- nothing to write\n`);
-	process.stderr.write(`trigger with: ${toHexBytes(triggerSysEx())}\n`);
+	process.stderr.write(`trigger with: ${toHexBytes(triggerMessage())}\n`);
 	process.exit(0);
 }
 
@@ -266,4 +266,4 @@ if (result.isUnchanged) {
 const target = out || input.replace(/(\.[^./\\]+)?$/u, '_patched$1');
 fs.writeFileSync(target, result.rom);
 process.stderr.write(`\nwrote ${target}\n`);
-process.stderr.write(`trigger with: ${toHexBytes(triggerSysEx())}\n`);
+process.stderr.write(`trigger with: ${toHexBytes(triggerMessage())}\n`);
