@@ -59,7 +59,7 @@
 			"label": "Roland SC-155",
 			"config": "mcu-wave-1m1m1m",
 			"dumper": "maincpu532",
-			"isDumpTested": false,
+			"isDumpTested": true,
 			"systemInfo": [
 				"GS           VER=1.13           "
 			]

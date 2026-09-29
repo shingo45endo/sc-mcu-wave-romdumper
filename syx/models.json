@@ -376,7 +376,7 @@
 			"config": "mcu-wave-1m1m1m",
 			"dumper": "maincpu532",
 			"scramble": "sc55",
-			"isDumpTested": false,
+			"isDumpTested": true,
 			"loader": [
 				"00-gsreset.syx",
 				"01-body.syx",
