@@ -190,7 +190,7 @@
 		import {formatDuration, toHexBytes} from './lib/format.js';
 		import {parsePingReply, pingMessage, rewriteDeviceId} from './lib/gs_message.js';
 		import {loadCapture, calcTransferMs} from './lib/sysex.js';
-		import {ANSWER_MS, buildFileHeaderPass, buildPass, getPassBytes, planPasses, toRegions} from './lib/wave_plan_88.js';
+		import {ANSWER_MS, buildFileHeaderPass, buildPass, getPassBytes, planPasses, buildRegions} from './lib/wave_plan_88.js';
 		import {convertToRomImage, looksLikeWaveRom} from './lib/wave_scramble.js';
 
 		const NOT_SUPPORTED_ON_BROWSER = {
@@ -237,7 +237,7 @@
 		let activeTask = null;	// 'detect' | 'dump' | null
 		let capturedBytes = [];
 		let receiver = new FileDumpReceiver();
-		let expected = null;
+		let currentModel = null;
 		let chosenChips = new Set();
 		let wantedChips = null;
 		let isDumpStarted = false;
@@ -381,7 +381,7 @@
 		// How long one chip takes here. The catalogue's own figure is for the prepared files, which pace themselves
 		// differently and leave room for an answer this page waits for, so it would be a tenth too long.
 		function calcChipSeconds(model, file) {
-			const regions = toRegions(model.readRegions);
+			const regions = buildRegions(model.readRegions);
 			const passBytes = getPassBytes(regions);
 			const one = buildPass(0, {at: 0, size: passBytes}, regions, {bankBits: model.bankBits});
 			const passMs = one.reduce((total, entry, i) => (total + getPauseMs(entry, i === one.length - 1)), 0) + ANSWER_MS;
@@ -419,7 +419,7 @@
 			if (!bytes || !bytes.length) {
 				return {kind: 'none'};
 			}
-			const text = toSystemInfoText(bytes);
+			const text = formatSystemInfo(bytes);
 			// The block is 32 bytes. Anything else is not one, whatever it reads as.
 			if (bytes.length !== SYSTEM_INFO_SIZE) {
 				return {kind: 'unknown', text};
@@ -432,7 +432,7 @@
 			return buildAnswer(models, keys, {notOffered, selected, text});
 		}
 
-		function toSystemInfoText(bytes) {
+		function formatSystemInfo(bytes) {
 			let text = '';
 			for (const byte of bytes) {
 				text += (byte >= 0x20 && byte < 0x7f) ? String.fromCharCode(byte) : ' ';
@@ -485,9 +485,9 @@
 				return;
 			}
 
-			const chosen = getCurrentModel();
+			const chosenModel = getCurrentModel();
 			const v = evaluateSystemInfo(detectedReply, {
-				models, notOffered: NOT_SUPPORTED_ON_BROWSER, selected: chosen?.key,
+				models, notOffered: NOT_SUPPORTED_ON_BROWSER, selected: chosenModel?.key,
 			});
 			// One block can name two models that share a layout - the SC-55 and the SC-155 do - so this is a list.
 			const named = (v.labels) ? v.labels.join(' or ') : null;
@@ -497,14 +497,14 @@
 					elemModels.querySelector(`[data-badge="${key}"]`)?.classList.remove('d-none');
 				}
 				if (v.kind === 'mismatch') {
-					concern = `The synth identified itself as ${named}, but the dump is set to ${chosen.label}. ` +
-						`These two use different wave ROM layouts (${v.config} vs. ${chosen.config}). If you continue, ` +
+					concern = `The synth identified itself as ${named}, but the dump is set to ${chosenModel.label}. ` +
+						`These two use different wave ROM layouts (${v.config} vs. ${chosenModel.config}). If you continue, ` +
 						'you would get the wrong ROM data.';
 				}
 			} else if (v.kind === 'elsewhere') {
-				if (chosen && chosen.config !== v.config) {
+				if (chosenModel && chosenModel.config !== v.config) {
 					concern = `The synth identified itself as ${named} (layout: ${v.config}). ` +
-						`But the dump is set to ${chosen.label} (layout: ${chosen.config}) instead.`;
+						`But the dump is set to ${chosenModel.label} (layout: ${chosenModel.config}) instead.`;
 				}
 			} else {
 				concern = "The synth's reply does not match any known model. This tool only supports the SC-55 and its " +
@@ -621,7 +621,7 @@
 			if (activeTask === 'detect') {
 				const reply = parsePingReply(bytes);
 				if (reply) {
-					pings.push({device: reply.device, text: toSystemInfoText(reply.data), data: reply.data});
+					pings.push({device: reply.device, text: formatSystemInfo(reply.data), data: reply.data});
 				}
 				return;
 			}
@@ -637,7 +637,7 @@
 					hasData = true;
 				}
 			}
-			if (expected?.family === '88') {
+			if (currentModel?.family === '88') {
 				bulkReceiver?.feed(bytes);
 				onPassData?.();
 			} else {
@@ -695,11 +695,11 @@
 		// Choosing a synth is what fills the file table in, so the table is also where its files are picked. The
 		// rows are thrown away rather than reused, because two synths can have a file of the same name.
 		function chooseModel() {
-			expected = getCurrentModel();
+			currentModel = getCurrentModel();
 			// The SC-88 family is read one chip select at a time, half an hour each, so let the user pick which ones
 			// to do now. The other family sends every file in one go, and has nothing to choose.
-			chosenChips = new Set((expected?.family === '88') ? expected.files.map((_, chipNo) => chipNo) : []);
-			chipSeconds = (expected?.family === '88') ? expected.files.map((file) => calcChipSeconds(expected, file)) : [];
+			chosenChips = new Set((currentModel?.family === '88') ? currentModel.files.map((_, chipNo) => chipNo) : []);
+			chipSeconds = (currentModel?.family === '88') ? currentModel.files.map((file) => calcChipSeconds(currentModel, file)) : [];
 			for (const [, row] of rows) {
 				row.tr.remove();
 			}
@@ -709,14 +709,14 @@
 		}
 
 		function renderFilesTotal() {
-			const isShown = (expected?.family === '88');
+			const isShown = (currentModel?.family === '88');
 			elemFilesTotal.classList.toggle('d-none', !isShown);
 			if (!isShown) {
 				return;
 			}
 			const chips = getWantedChips();
 			elemFilesTotal.textContent = (chips.length)
-				? `${chips.length} of ${expected.files.length} selected, about ${formatDuration(getSelectedSeconds())}`
+				? `${chips.length} of ${currentModel.files.length} selected, about ${formatDuration(getSelectedSeconds())}`
 				: 'Nothing selected.';
 		}
 
@@ -753,7 +753,7 @@
 		// What has arrived so far, one entry per file. A File Dump names its own files; a bulk dump is one file per
 		// chip, so a chip that has finished is a result of its own and the one being read is counted by its passes.
 		function getArrivedFiles() {
-			if (expected?.family !== '88') {
+			if (currentModel?.family !== '88') {
 				return receiver.getProperties();
 			}
 			const rows = [...doneFiles];
@@ -774,15 +774,15 @@
 		// Every file the dump was asked for, with whatever has arrived merged in by name. A file that never arrives
 		// stays in the table rather than being missing from it, and a name nobody expected is added at the end.
 		function getFileRows() {
-			const arrived = getArrivedFiles();
-			const out = (expected?.files ?? []).map((one, chipNo) => {
-				const file = arrived.find((e) => (e.name === one.name)) ??
+			const arrivedFiles = getArrivedFiles();
+			const out = (currentModel?.files ?? []).map((one, chipNo) => {
+				const file = arrivedFiles.find((e) => (e.name === one.name)) ??
 					{name: one.name, size: one.size, received: 0, packets: 0, errors: [], isComplete: false};
 
 				return {...file, chipNo, isWanted: isChipWanted(chipNo)};
 			});
 			const shownNames = new Set(out.map((file) => file.name));
-			for (const file of arrived) {
+			for (const file of arrivedFiles) {
 				if (!shownNames.has(file.name)) {
 					out.push({...file, chipNo: -1, isWanted: true});
 				}
@@ -792,7 +792,7 @@
 		}
 
 		function getFileByName(name) {
-			if (expected?.family === '88') {
+			if (currentModel?.family === '88') {
 				return doneFiles.find((file) => (file.name === name)) ?? null;
 			}
 			const index = receiver.getProperties().findIndex((file) => (file.name === name));
@@ -823,7 +823,7 @@
 		function renderFiles() {
 			const files = getFileRows();
 			elemFiles.classList.toggle('d-none', files.length === 0);
-			elemFiles.classList.toggle('my-nopick', expected?.family !== '88');
+			elemFiles.classList.toggle('my-nopick', currentModel?.family !== '88');
 
 			let completeCount = 0;
 			for (const file of files) {
@@ -860,8 +860,8 @@
 			const wantedRows = getWantedRows(files);
 			const total = wantedRows.reduce((p, file) => p + file.size, 0);
 			if (total > 0) {
-				const received = wantedRows.reduce((p, file) => p + file.received, 0);
-				const pct = Math.min(100, Math.round(100 * received / total));
+				const receivedSize = wantedRows.reduce((p, file) => p + file.received, 0);
+				const pct = Math.min(100, Math.round(100 * receivedSize / total));
 				elemProgressFill.style.width = `${pct}%`;
 				elemProgressFill.textContent = `${pct}%`;
 			}
@@ -875,9 +875,9 @@
 		}
 
 		function getRowFor(name, chipNo) {
-			const found = rows.get(name);
-			if (found) {
-				return found;
+			const existingRow = rows.get(name);
+			if (existingRow) {
+				return existingRow;
 			}
 
 			const tr = document.createElement('tr');
@@ -919,18 +919,18 @@
 		function saveFile(file) {
 			function saveName(isPartial) {
 				const stem = file.name.toLowerCase().replace(/\.bin$/u, '');
-				return `${(expected) ? `${expected.key}_` : ''}${stem}${(isPartial) ? '_partial' : ''}.bin`;
+				return `${(currentModel) ? `${currentModel.key}_` : ''}${stem}${(isPartial) ? '_partial' : ''}.bin`;
 			}
 
 			function prepareForSave() {
-				const entry = expected?.files.find((e) => (e.name === file.name));
+				const entry = currentModel?.files.find((e) => (e.name === file.name));
 				if (entry?.source !== 'wave') {
 					return {bytes: file.bytes, note: ''};
 				}
 				if (!file.isComplete) {
 					return {bytes: file.bytes, note: ' (left as captured - a partial dump cannot be made into an image)'};
 				}
-				const image = convertToRomImage(file.bytes, {scramble: expected.scramble});
+				const image = convertToRomImage(file.bytes, {scramble: currentModel.scramble});
 				return {
 					bytes: image,
 					note: (looksLikeWaveRom(image)) ? ' (as a ROM image)' : ' (as a ROM image, but the header looks wrong)',
@@ -1011,7 +1011,7 @@
 			bulkFile = null;
 			bulkPassesDone = 0;
 			doneFiles = [];
-			wantedChips = (expected.family === '88') ? getWantedChips() : null;
+			wantedChips = (currentModel.family === '88') ? getWantedChips() : null;
 			capturedBytes = [];
 			updateButtons();
 			elemRunning.classList.remove('d-none');
@@ -1020,7 +1020,7 @@
 			renderFiles();
 
 			try {
-				await ((expected.family === '88') ? runBulkDump() : runFileDump());
+				await ((currentModel.family === '88') ? runBulkDump() : runFileDump());
 			} catch (e) {
 				showError(e.message);
 				finishDump('failed');
@@ -1029,7 +1029,7 @@
 
 		// One synth sends its dump by itself: send everything, then keep out of the way and listen.
 		async function runFileDump() {
-			const names = [...expected.loader, expected.table, expected.trigger];
+			const names = [...currentModel.loader, currentModel.table, currentModel.trigger];
 			logLine(`GS reset, then the dumper (${names.slice(1, -1).join(' + ')})`);
 			const [...parts] = await Promise.all(names.map(fetchMessages));
 			const trigger = parts.pop();
@@ -1039,7 +1039,7 @@
 				return;
 			}
 			logLine(`${parts.flat().length} messages sent. ` +
-				`${expected.files.length} files to come (${formatDuration(calcModelSeconds(expected))}).`);
+				`${currentModel.files.length} files to come (${formatDuration(calcModelSeconds(currentModel))}).`);
 			await sleepMs(SETTLE_MS);
 			if (!activeTask) {
 				finishDump('stopped');
@@ -1075,11 +1075,11 @@
 		// The other synth cannot send a dump by itself: the dumper leaves one pass in RAM and the page reads it back.
 		// So this is a round trip per pass, and the next pass cannot go out until the answer to this one has arrived.
 		async function runBulkDump() {
-			const regions = toRegions(expected.readRegions);
+			const regions = buildRegions(currentModel.readRegions);
 			bulkPassBytes = getPassBytes(regions);
 
-			logLine(`GS reset, then the dumper (${expected.loader.at(-1)})`);
-			const parts = (await Promise.all(expected.loader.map(fetchMessages))).flat();
+			logLine(`GS reset, then the dumper (${currentModel.loader.at(-1)})`);
+			const parts = (await Promise.all(currentModel.loader.map(fetchMessages))).flat();
 			if (!await sendMessages(parts, deviceId)) {
 				finishDump('stopped');
 				return;
@@ -1102,7 +1102,7 @@
 
 		// One chip select, pass by pass. Returns false when the dump should not go on.
 		async function runOneChip(chipNo, regions) {
-			const file = expected.files[chipNo];
+			const file = currentModel.files[chipNo];
 			const passes = planPasses(file.size, bulkPassBytes);
 			bulkReceiver = new BulkDumpReceiver(regions);
 			bulkFile = file;
@@ -1122,7 +1122,7 @@
 				if (!activeTask) {
 					break;
 				}
-				const isDone = await runOnePass(buildPass(chipNo, pass, regions, {bankBits: expected.bankBits}));
+				const isDone = await runOnePass(buildPass(chipNo, pass, regions, {bankBits: currentModel.bankBits}));
 				if (!activeTask) {
 					break;		// stopped part way, which is not the same as a pass that did not answer
 				}
@@ -1312,7 +1312,7 @@
 		});
 
 		elemSaveSyx.addEventListener('click', () => {
-			downloadFile(`${(expected) ? `${expected.key}_` : ''}capture.syx`, Uint8Array.from(capturedBytes));
+			downloadFile(`${(currentModel) ? `${currentModel.key}_` : ''}capture.syx`, Uint8Array.from(capturedBytes));
 		});
 
 		// --------------------------------

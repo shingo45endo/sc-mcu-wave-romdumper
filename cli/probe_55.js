@@ -19,7 +19,7 @@ import util from 'node:util';
 import {FileDumpReceiver} from '../lib/file_dump.js';
 import {toHex} from '../lib/format.js';
 import {loadCapture} from '../lib/sysex.js';
-import {convertToRomImage, toHeaderText, looksLikeWaveRom} from '../lib/wave_scramble.js';
+import {convertToRomImage, getHeaderText, looksLikeWaveRom} from '../lib/wave_scramble.js';
 
 // The source tags a file table entry carries. Defined for real by SRC_MCU and SRC_PCM in src/55/dumper.inc;
 // nothing here reads a built table, it only writes the assembler source for one.
@@ -143,8 +143,8 @@ for (const window of windows) {
 
 process.stderr.write('\n');
 if (header) {
-	const raw = toHeaderText(header.bytes);
-	const desc = toHeaderText(convertToRomImage(header.bytes.slice(0, 112), {bits: 20}).slice(0, 32));
+	const raw = getHeaderText(header.bytes);
+	const desc = getHeaderText(convertToRomImage(header.bytes.slice(0, 112), {bits: 20}).slice(0, 32));
 	process.stderr.write(`  window at address 0, as received : ${raw}\n`);
 	process.stderr.write(`  ...as a ROM image                : ${desc}\n`);
 	process.stderr.write((looksLikeWaveRom(convertToRomImage(header.bytes.slice(0, 112), {bits: 20})))

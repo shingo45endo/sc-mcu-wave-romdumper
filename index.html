@@ -237,14 +237,14 @@
 
 		async function loadFile(file) {
 			const bytes = new Uint8Array(await file.arrayBuffer());
-			let chosen;
+			let choice;
 			try {
-				chosen = chooseFamily(bytes);
+				choice = chooseFamily(bytes);
 			} catch (e) {
 				showError(e.message);
 				return;
 			}
-			current = {name: file.name, bytes, family: chosen.family, info: chosen.info};
+			current = {name: file.name, bytes, family: choice.family, info: choice.info};
 			renderReport();
 		}
 

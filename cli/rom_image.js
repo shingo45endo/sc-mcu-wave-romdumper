@@ -20,7 +20,7 @@ import crypto from 'node:crypto';
 
 import {toHex} from '../lib/format.js';
 import {calcCrc32, swapBytes} from '../lib/rom_search.js';
-import {convertToRomImage, convertToPortOrder, getScrambleNames, toHeaderText, looksLikeWaveRom} from '../lib/wave_scramble.js';
+import {convertToRomImage, convertToPortOrder, getScrambleNames, getHeaderText, looksLikeWaveRom} from '../lib/wave_scramble.js';
 
 function printUsageAndExit(message) {
 	if (message) {
@@ -80,24 +80,24 @@ if (isCheck) {
 	if (inputs.length !== 2) {
 		printUsageAndExit('--check takes exactly two files');
 	}
-	const expected = readInputFile(inputs[0]);
+	const chipBytes = readInputFile(inputs[0]);
 	const actual = convertToRomImage(readInputFile(inputs[1]), {scramble});
-	const n = Math.min(expected.length, actual.length);
+	const n = Math.min(chipBytes.length, actual.length);
 	let badCount = 0;
 	let first = -1;
 	for (let i = 0; i < n; i++) {
-		if (expected[i] !== actual[i]) {
+		if (chipBytes[i] !== actual[i]) {
 			if (first < 0) {
 				first = i;
 			}
 			badCount++;
 		}
 	}
-	process.stderr.write(`${path.basename(inputs[0])}: ${expected.length} bytes\n`);
+	process.stderr.write(`${path.basename(inputs[0])}: ${chipBytes.length} bytes\n`);
 	process.stderr.write(`${path.basename(inputs[1])}: ${actual.length} bytes as a ROM image\n`);
 	process.stderr.write(`compared ${n} bytes, ${badCount} differ${(first < 0) ? '' : ` (first at H'${first.toString(16).toUpperCase()})`}\n`);
 	// A wave ROM is 16 bits wide, so a reader can hand one back the other way round.
-	if (badCount > 0 && isSame(swapBytes(expected), actual)) {
+	if (badCount > 0 && isSame(swapBytes(chipBytes), actual)) {
 		process.stderr.write('  they are the same image: one of them was read out the other way round,\n' +
 			'  which a 16 bit wide ROM allows\n');
 	}
@@ -133,7 +133,7 @@ for (const input of inputs) {
 
 	const isValidWaveRom = (isReverse || looksLikeWaveRom(out));
 	process.stderr.write(`${path.basename(input)} -> ${path.join(dir, name)}\n`);
-	process.stderr.write(`  header: ${toHeaderText(out)}\n`);
+	process.stderr.write(`  header: ${getHeaderText(out)}\n`);
 	// The two a ROM set lists, so that this can be compared against one without keeping a copy of it here.
 	process.stderr.write(`  crc32:  ${toHex(calcCrc32(out), 8)}\n`);
 	process.stderr.write(`  sha1:   ${crypto.createHash('sha1').update(out).digest('hex')}\n`);

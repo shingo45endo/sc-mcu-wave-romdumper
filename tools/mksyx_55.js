@@ -23,7 +23,7 @@ import {triggerMessage} from '../lib/hook.js';
 
 import {buildBulkMessages} from './bulk_load.js';
 import {writeSmf, concatSysex} from './smf_write.js';
-import {checkSystemInfo, toSystemInfoBlock} from './system_info.js';
+import {checkSystemInfo, decodeSystemInfo} from './system_info.js';
 
 const ROOT = path.join(path.dirname(url.fileURLToPath(import.meta.url)), '..');
 
@@ -270,10 +270,10 @@ function main() {
 			formatSmfTitle(3, `file table ${name}, ${files.length} file(s) (${formatDuration(seconds)})`),
 		);
 
-		const declared = catalogue.configs?.[name] ?? {};
+		const declaredConfig = catalogue.configs?.[name] ?? {};
 		configs[name] = {
-			note: declared.note ?? '',
-			isLayoutConfirmed: declared.isLayoutConfirmed ?? false,
+			note: declaredConfig.note ?? '',
+			isLayoutConfirmed: declaredConfig.isLayoutConfirmed ?? false,
 			table: `03-${name}.syx`,
 			trigger: '04-trigger.syx',
 			files: files.map((file) => ({
@@ -319,7 +319,7 @@ function main() {
 		};
 		if (model.systemInfo) {
 			checkSystemInfo(key, model.systemInfo, model.config, claimedBlocks);
-			models[key].systemInfo = model.systemInfo.map(toSystemInfoBlock);
+			models[key].systemInfo = model.systemInfo.map(decodeSystemInfo);
 		}
 	}
 

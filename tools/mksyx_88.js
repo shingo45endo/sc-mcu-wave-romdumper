@@ -23,11 +23,11 @@ import url from 'node:url';
 import util from 'node:util';
 
 import {formatDuration} from '../lib/format.js';
-import {GAP_ANSWER_MS, GAP_REQUEST_MS, GAP_TRIGGER_MS, buildFileHeaderPass, buildPass, getPassBytes, planPasses, toRegions} from '../lib/wave_plan_88.js';
+import {GAP_ANSWER_MS, GAP_REQUEST_MS, GAP_TRIGGER_MS, buildFileHeaderPass, buildPass, getPassBytes, planPasses, buildRegions} from '../lib/wave_plan_88.js';
 import {gsResetMessage} from '../lib/gs_message.js';
 import {buildBulkMessages} from './bulk_load.js';
 import {writeSmf} from './smf_write.js';
-import {checkSystemInfo, readClaimedBlocks, toSystemInfoBlock} from './system_info.js';
+import {checkSystemInfo, readClaimedBlocks, decodeSystemInfo} from './system_info.js';
 
 const ROOT = path.join(path.dirname(url.fileURLToPath(import.meta.url)), '..');
 
@@ -74,11 +74,11 @@ function main() {
 	fs.mkdirSync(outDir, {recursive: true});
 	const catalogue = JSON.parse(fs.readFileSync(path.join(ROOT, 'tools', 'catalogue.json'), 'utf8'));
 
-	const wanted = (values.at === undefined) ? null : values.at.split(',').map((text) => parseInt(text.trim(), 16));
-	if (wanted && (values.model === undefined || values.chip === undefined)) {
+	const retryOffsets = (values.at === undefined) ? null : values.at.split(',').map((text) => parseInt(text.trim(), 16));
+	if (retryOffsets && (values.model === undefined || values.chip === undefined)) {
 		printUsageAndExit('--at needs --model and --chip as well');
 	}
-	if (wanted && wanted.some((at) => !Number.isInteger(at))) {
+	if (retryOffsets && retryOffsets.some((at) => !Number.isInteger(at))) {
 		printUsageAndExit('--at takes hexadecimal offsets, separated by commas');
 	}
 
@@ -88,7 +88,7 @@ function main() {
 	const models = {};
 	const configs = {};
 	for (const [key, model] of Object.entries(catalogue.models ?? {})) {
-		if (wanted && key !== values.model) {
+		if (retryOffsets && key !== values.model) {
 			continue;
 		}
 		if ((model.family ?? '55') !== FAMILY) {
@@ -117,14 +117,14 @@ function main() {
 			throw new Error(`${key} has no readRegions, so there is nothing to read the dumper's result out of`);
 		}
 
-		const regions = toRegions(model.readRegions);
+		const regions = buildRegions(model.readRegions);
 		const passBytes = getPassBytes(regions);
 
 		// The dumper on its own, so the page can send it the way it sends the other family's: one file per part.
 		const dumperMessages = buildBulkMessages(body, 0, {mapNo: MAP_NO, blockOrder: BLOCK_ORDER});
 		const loader = [gsResetMessage(), ...dumperMessages];
 		const loaderStem = `01-dumper-${model.dumper}`;
-		if (!wanted && !made.has(loaderStem)) {
+		if (!retryOffsets && !made.has(loaderStem)) {
 			made.add(loaderStem);
 			fs.writeFileSync(path.join(outDir, `${loaderStem}.syx`), concatSysex(dumperMessages));
 			fs.writeFileSync(path.join(outDir, `${loaderStem}.mid`), writeSmf(dumperMessages, {name: loaderStem}));
@@ -134,14 +134,14 @@ function main() {
 		// Named by the layout and the dumper, not by the synth: two synths that need the same file get the same one.
 		const stems = chips.map((_, chipNo) => `dump-${model.config}-${model.dumper}-chip${chipNo}`);
 		for (const [chipNo, size] of chips.entries()) {
-			if (wanted && chipNo !== Number(values.chip)) {
+			if (retryOffsets && chipNo !== Number(values.chip)) {
 				continue;
 			}
 
-			const stem = (wanted) ? `retry-${model.config}-${model.dumper}-chip${chipNo}` : stems[chipNo];
+			const stem = (retryOffsets) ? `retry-${model.config}-${model.dumper}-chip${chipNo}` : stems[chipNo];
 			const whole = planPasses(size, passBytes);
-			const passes = (wanted)
-				? whole.filter((pass) => wanted.some((at) => (at >= pass.at && at < pass.at + pass.size)))
+			const passes = (retryOffsets)
+				? whole.filter((pass) => retryOffsets.some((at) => (at >= pass.at && at < pass.at + pass.size)))
 				: whole;
 			if (!passes.length) {
 				printUsageAndExit(`nothing in ${key} chip ${chipNo} covers those offsets`);
@@ -168,7 +168,7 @@ function main() {
 			fs.writeFileSync(path.join(outDir, `${stem}.mid`), writeSmf(messages, {name: stem}));
 			written.push({stem, size, passes: passes.length, bytes: syx.length, seconds});
 		}
-		if (wanted) {
+		if (retryOffsets) {
 			continue;
 		}
 
@@ -191,7 +191,7 @@ function main() {
 			loader: ['00-gsreset.syx', `${loaderStem}.syx`],
 			readRegions: model.readRegions,
 			dump: files.map((file) => file.dump),
-			...(model.systemInfo) ? {systemInfo: model.systemInfo.map(toSystemInfoBlock)} : {},
+			...(model.systemInfo) ? {systemInfo: model.systemInfo.map(decodeSystemInfo)} : {},
 		};
 	}
 
@@ -209,7 +209,7 @@ function main() {
 	}
 	process.stderr.write(`\nwritten to ${path.relative(ROOT, outDir)}/  (.syx and .mid of each)\n`);
 
-	if (wanted) {
+	if (retryOffsets) {
 		return 0;	// a retry is not a release: the published table is left alone
 	}
 

@@ -17,7 +17,7 @@ export function checkSystemInfo(key, entries, config, seen) {
 		}
 		// Two models sharing a block is fine - the SC-55 and the SC-155 do - as long as they agree about the layout.
 		// Both spellings of the same bytes have to land on the same key, so the hex form is decoded first.
-		const block = toSystemInfoBlock(entry);
+		const block = decodeSystemInfo(entry);
 		const owner = seen.get(block);
 		if (owner && owner.config !== config) {
 			throw new Error(`${key}: systemInfo ${JSON.stringify(entry)} is also ${owner.key}'s, ` +
@@ -33,7 +33,7 @@ export function readClaimedBlocks(models) {
 	const seen = new Map();
 	for (const [key, model] of Object.entries(models ?? {})) {
 		for (const entry of model.systemInfo ?? []) {
-			seen.set(toSystemInfoBlock(entry), {key, config: model.config});
+			seen.set(decodeSystemInfo(entry), {key, config: model.config});
 		}
 	}
 
@@ -43,7 +43,7 @@ export function readClaimedBlocks(models) {
 // The 32 bytes a catalogue entry stands for. An entry is normally those bytes as characters; 64 hex digits are
 // the way to write a block that is not printable, and no synth has needed that yet. models.json carries the bytes
 // themselves, so the page does not have to know either way of writing them.
-export function toSystemInfoBlock(entry) {
+export function decodeSystemInfo(entry) {
 	if (entry.length === 64 && (/^[0-9a-fA-F]{64}$/u).test(entry)) {
 		const bytes = [];
 		for (let i = 0; i < 64; i += 2) {
