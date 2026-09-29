@@ -14,7 +14,7 @@ console.assert(
 	'the block swizzle must be its own inverse',
 );
 
-export function getBlockOrderNames() {
+function getBlockOrderNames() {
 	return Object.keys(BLOCK_ORDERS);
 }
 

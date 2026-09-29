@@ -188,7 +188,7 @@
 		import {BulkDumpReceiver, getBulkDumpResult} from './lib/bulk_dump.js';
 		import {FileDumpReceiver} from './lib/file_dump.js';
 		import {formatDuration, toHexBytes} from './lib/format.js';
-		import {parsePingReplyData, parsePingReplyDevice, pingMessage, rewriteDeviceId} from './lib/gs_message.js';
+		import {parsePingReply, pingMessage, rewriteDeviceId} from './lib/gs_message.js';
 		import {loadCapture, calcTransferMs} from './lib/sysex.js';
 		import {ANSWER_MS, buildFileHeaderPass, buildPass, getPassBytes, planPasses, toRegions} from './lib/wave_plan_88.js';
 		import {convertToRomImage, looksLikeWaveRom} from './lib/wave_scramble.js';
@@ -614,15 +614,14 @@
 			const bytes = event.data;
 			// A reply to the confirmation request below, which can arrive at any time, not only while the connection check is
 			// running.
-			if (pendingPingResolver && parsePingReplyDevice(bytes) !== null) {
+			if (pendingPingResolver && parsePingReply(bytes)) {
 				pendingPingResolver();
 				return;
 			}
 			if (activeTask === 'detect') {
-				const replyDeviceId = parsePingReplyDevice(bytes);
-				if (replyDeviceId !== null) {
-					const block = parsePingReplyData(bytes);
-					pings.push({device: replyDeviceId, text: toSystemInfoText(block), data: block});
+				const reply = parsePingReply(bytes);
+				if (reply) {
+					pings.push({device: reply.device, text: toSystemInfoText(reply.data), data: reply.data});
 				}
 				return;
 			}
