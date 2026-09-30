@@ -328,8 +328,8 @@
 			// A model's wave files, bucketed into the 2 MiB slots they answer in.
 			function calcSlots() {
 				const waves = model.files.filter((file) => (file.source === 'wave'));
-				const top = Math.max(...waves.map((file) => Math.ceil((file.start + file.size) / SLOT_BYTES)));
-				const filledSlots = Array.from({length: top}, () => 0);
+				const slotCount = Math.max(...waves.map((file) => Math.ceil((file.start + file.size) / SLOT_BYTES)));
+				const filledSlots = Array.from({length: slotCount}, () => 0);
 				for (const wave of waves) {
 					filledSlots[Math.floor(wave.start / SLOT_BYTES)] += wave.size;
 				}
@@ -383,8 +383,8 @@
 		function calcChipSeconds(model, file) {
 			const regions = buildRegions(model.readRegions);
 			const passBytes = getPassBytes(regions);
-			const one = buildPass(0, {at: 0, size: passBytes}, regions, {bankBits: model.bankBits});
-			const passMs = one.reduce((total, entry, i) => (total + getPauseMs(entry, i === one.length - 1)), 0) + ANSWER_MS;
+			const passMessages = buildPass(0, {at: 0, size: passBytes}, regions, {bankBits: model.bankBits});
+			const passMs = passMessages.reduce((total, entry, i) => (total + getPauseMs(entry, i === passMessages.length - 1)), 0) + ANSWER_MS;
 			// One pass more than the wave ROM needs, for the file header.
 			const passCount = planPasses(file.size, passBytes).length + 1;
 
@@ -490,20 +490,20 @@
 				models, notOffered: NOT_SUPPORTED_ON_BROWSER, selected: chosenModel?.key,
 			});
 			// One block can name two models that share a layout - the SC-55 and the SC-155 do - so this is a list.
-			const named = (v.labels) ? v.labels.join(' or ') : null;
+			const identifiedLabel = (v.labels) ? v.labels.join(' or ') : null;
 
 			if (v.kind === 'match' || v.kind === 'mismatch') {
 				for (const key of v.keys) {
 					elemModels.querySelector(`[data-badge="${key}"]`)?.classList.remove('d-none');
 				}
 				if (v.kind === 'mismatch') {
-					concern = `The synth identified itself as ${named}, but the dump is set to ${chosenModel.label}. ` +
+					concern = `The synth identified itself as ${identifiedLabel}, but the dump is set to ${chosenModel.label}. ` +
 						`These two use different wave ROM layouts (${v.config} vs. ${chosenModel.config}). If you continue, ` +
 						'you would get the wrong ROM data.';
 				}
 			} else if (v.kind === 'elsewhere') {
 				if (chosenModel && chosenModel.config !== v.config) {
-					concern = `The synth identified itself as ${named} (layout: ${v.config}). ` +
+					concern = `The synth identified itself as ${identifiedLabel} (layout: ${v.config}). ` +
 						`But the dump is set to ${chosenModel.label} (layout: ${chosenModel.config}) instead.`;
 				}
 			} else {
@@ -515,8 +515,8 @@
 			elemVerdict.className = 'form-text mt-1';
 			const info = v.text || 'not text - the log has the 32 bytes';
 			elemVerdict.appendChild(buildRow('System information', info, (v.text) ? 'code' : 'span'));
-			if (named) {
-				elemVerdict.appendChild(buildRow('Identified as', named, 'strong'));
+			if (identifiedLabel) {
+				elemVerdict.appendChild(buildRow('Identified as', identifiedLabel, 'strong'));
 			}
 		}
 
@@ -656,14 +656,14 @@
 				}
 
 				let hasReplied = false;
-				const replied = new Promise((resolve) => {
+				const replyPromise = new Promise((resolve) => {
 					pendingPingResolver = () => {
 						hasReplied = true;
 						resolve();
 					};
 				});
 				currentOut.send(pingMessage(deviceId));
-				await Promise.race([replied, sleepMs(800)]);
+				await Promise.race([replyPromise, sleepMs(800)]);
 				pendingPingResolver = null;
 
 				return hasReplied;
@@ -1060,13 +1060,13 @@
 					finishDump('done');
 					return;
 				}
-				const quiet = performance.now() - lastPacketAt;
+				const quietMs = performance.now() - lastPacketAt;
 				// Not one byte since the trigger: the dumper never started.
-				if (!capturedBytes.length && quiet > ARMED_TIMEOUT_MS) {
+				if (!capturedBytes.length && quietMs > ARMED_TIMEOUT_MS) {
 					await reportNoDumperResponse();
 					return;
 				}
-				if (quiet > IDLE_TIMEOUT_MS) {
+				if (quietMs > IDLE_TIMEOUT_MS) {
 					finishDump('nothing more arrived - the dump stopped early');
 				}
 			}
@@ -1174,7 +1174,7 @@
 		function waitForPass(passNo, until) {
 			return new Promise((resolve) => {
 				let timer = null;
-				const settle = (isDone) => {
+				const settlePass = (isDone) => {
 					clearTimeout(timer);
 					onPassData = null;
 					cancelPassWait = null;
@@ -1183,11 +1183,11 @@
 				onPassData = () => {
 					const pass = bulkReceiver.passes[passNo];
 					if (pass && pass.received >= bulkReceiver.passSize) {
-						settle(true);
+						settlePass(true);
 					}
 				};
-				cancelPassWait = () => settle(false);
-				timer = setTimeout(() => settle(false), Math.max(0, until - performance.now()));
+				cancelPassWait = () => settlePass(false);
+				timer = setTimeout(() => settlePass(false), Math.max(0, until - performance.now()));
 				onPassData();
 			});
 		}
@@ -1290,13 +1290,13 @@
 
 		elemSaveAll.addEventListener('click', () => {
 			const files = getFileRows();
-			let saved = 0;
+			let savedCount = 0;
 			for (const file of files) {
 				if (!file.isComplete) {
 					continue;
 				}
 				saveFile(getFileByName(file.name));
-				saved++;
+				savedCount++;
 			}
 			for (const file of files) {
 				// Nothing to say about a file nobody asked for.
@@ -1306,7 +1306,7 @@
 				logLine(`skipped ${file.name}: ${file.received} of ${file.size} bytes${(activeTask) ? ' - still receiving'
 					: (file.received) ? ' - use "Save partial" on its own row' : ' - nothing arrived'}`);
 			}
-			if (!saved) {
+			if (!savedCount) {
 				logLine('nothing saved - no file has finished yet');
 			}
 		});

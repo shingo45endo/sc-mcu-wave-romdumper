@@ -82,9 +82,9 @@ function main() {
 		printUsageAndExit('--at takes hexadecimal offsets, separated by commas');
 	}
 
-	const written = [];
+	const writtenFiles = [];
 	const loaderStems = [];
-	const made = new Set();
+	const madeStems = new Set();
 	const models = {};
 	const configs = {};
 	for (const [key, model] of Object.entries(catalogue.models ?? {})) {
@@ -124,8 +124,8 @@ function main() {
 		const dumperMessages = buildBulkMessages(body, 0, {mapNo: MAP_NO, blockOrder: BLOCK_ORDER});
 		const loader = [gsResetMessage(), ...dumperMessages];
 		const loaderStem = `01-dumper-${model.dumper}`;
-		if (!retryOffsets && !made.has(loaderStem)) {
-			made.add(loaderStem);
+		if (!retryOffsets && !madeStems.has(loaderStem)) {
+			madeStems.add(loaderStem);
 			fs.writeFileSync(path.join(outDir, `${loaderStem}.syx`), concatSysex(dumperMessages));
 			fs.writeFileSync(path.join(outDir, `${loaderStem}.mid`), writeSmf(dumperMessages, {name: loaderStem}));
 			loaderStems.push(loaderStem);
@@ -139,10 +139,10 @@ function main() {
 			}
 
 			const stem = (retryOffsets) ? `retry-${model.config}-${model.dumper}-chip${chipNo}` : stems[chipNo];
-			const whole = planPasses(size, passBytes);
+			const allPasses = planPasses(size, passBytes);
 			const passes = (retryOffsets)
-				? whole.filter((pass) => retryOffsets.some((at) => (at >= pass.at && at < pass.at + pass.size)))
-				: whole;
+				? allPasses.filter((pass) => retryOffsets.some((at) => (at >= pass.at && at < pass.at + pass.size)))
+				: allPasses;
 			if (!passes.length) {
 				printUsageAndExit(`nothing in ${key} chip ${chipNo} covers those offsets`);
 			}
@@ -154,19 +154,19 @@ function main() {
 			files.push({name, size, source: 'wave', start, dump: `${stem}.syx`, seconds});
 
 			// Two synths that need the same file share it, so it is only built once.
-			if (made.has(stem)) {
+			if (madeStems.has(stem)) {
 				continue;
 			}
-			made.add(stem);
+			madeStems.add(stem);
 
-			const messages = [...loader, ...buildFileHeaderPass(regions, {size, passCount: whole.length, name})];
+			const messages = [...loader, ...buildFileHeaderPass(regions, {size, passCount: allPasses.length, name})];
 			for (const pass of passes) {
 				messages.push(...buildPass(chipNo, pass, regions, {bankBits: layout.bankBits}));
 			}
 			const syx = concatSysex(messages);
 			fs.writeFileSync(path.join(outDir, `${stem}.syx`), syx);
 			fs.writeFileSync(path.join(outDir, `${stem}.mid`), writeSmf(messages, {name: stem}));
-			written.push({stem, size, passes: passes.length, bytes: syx.length, seconds});
+			writtenFiles.push({stem, size, passes: passes.length, bytes: syx.length, seconds});
 		}
 		if (retryOffsets) {
 			continue;
@@ -195,14 +195,14 @@ function main() {
 		};
 	}
 
-	if (!written.length) {
+	if (!writtenFiles.length) {
 		process.stderr.write('mksyx_88: nothing to build - run "make" first (it needs asl and p2bin)\n');
 		process.exit(1);
 	}
 	process.stderr.write(`\n  ${'file'.padEnd(28)} ${'chip'.padStart(9)} ${'passes'.padStart(7)} ${'bytes'.padStart(7)}  time\n`);
-	for (const one of written) {
-		process.stderr.write(`  ${one.stem.padEnd(28)} ${`${one.size / 1024 / 1024} MiB`.padStart(9)} ` +
-			`${String(one.passes).padStart(7)} ${String(one.bytes).padStart(7)}  ${formatDuration(one.seconds)}\n`);
+	for (const writtenFile of writtenFiles) {
+		process.stderr.write(`  ${writtenFile.stem.padEnd(28)} ${`${writtenFile.size / 1024 / 1024} MiB`.padStart(9)} ` +
+			`${String(writtenFile.passes).padStart(7)} ${String(writtenFile.bytes).padStart(7)}  ${formatDuration(writtenFile.seconds)}\n`);
 	}
 	for (const stem of loaderStems) {
 		process.stderr.write(`  ${stem.padEnd(28)} the dumper on its own\n`);

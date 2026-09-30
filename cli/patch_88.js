@@ -198,7 +198,7 @@ const isDryRun = values['dry-run'];
 
 const addr = parseHexOption(values, 'addr');
 const ramPage = parseHexOption(values, 'page');
-const free = parseHexOption(values, 'free');
+const freeOffset = parseHexOption(values, 'free');
 
 if (positionals.length > 1) {
 	printUsageAndExit('more than one input file');
@@ -219,7 +219,7 @@ try {
 const patchOptions = {
 	...((addr !== undefined) ? {loadAddr: addr} : {}),
 	...((ramPage !== undefined) ? {ramPage} : {}),
-	...((free !== undefined) ? {freeOffset: free} : {}),
+	...((freeOffset !== undefined) ? {freeOffset} : {}),
 };
 
 // A dry run has to predict the real run, so it patches in memory with the same options and reports that. Only the

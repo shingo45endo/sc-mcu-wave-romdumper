@@ -81,23 +81,23 @@ if (isCheck) {
 		printUsageAndExit('--check takes exactly two files');
 	}
 	const chipBytes = readInputFile(inputs[0]);
-	const actual = convertToRomImage(readInputFile(inputs[1]), {scramble});
-	const n = Math.min(chipBytes.length, actual.length);
+	const dumpImage = convertToRomImage(readInputFile(inputs[1]), {scramble});
+	const n = Math.min(chipBytes.length, dumpImage.length);
 	let badCount = 0;
-	let first = -1;
+	let firstBadAt = -1;
 	for (let i = 0; i < n; i++) {
-		if (chipBytes[i] !== actual[i]) {
-			if (first < 0) {
-				first = i;
+		if (chipBytes[i] !== dumpImage[i]) {
+			if (firstBadAt < 0) {
+				firstBadAt = i;
 			}
 			badCount++;
 		}
 	}
 	process.stderr.write(`${path.basename(inputs[0])}: ${chipBytes.length} bytes\n`);
-	process.stderr.write(`${path.basename(inputs[1])}: ${actual.length} bytes as a ROM image\n`);
-	process.stderr.write(`compared ${n} bytes, ${badCount} differ${(first < 0) ? '' : ` (first at H'${first.toString(16).toUpperCase()})`}\n`);
+	process.stderr.write(`${path.basename(inputs[1])}: ${dumpImage.length} bytes as a ROM image\n`);
+	process.stderr.write(`compared ${n} bytes, ${badCount} differ${(firstBadAt < 0) ? '' : ` (first at H'${firstBadAt.toString(16).toUpperCase()})`}\n`);
 	// A wave ROM is 16 bits wide, so a reader can hand one back the other way round.
-	if (badCount > 0 && isSame(swapBytes(chipBytes), actual)) {
+	if (badCount > 0 && isSame(swapBytes(chipBytes), dumpImage)) {
 		process.stderr.write('  they are the same image: one of them was read out the other way round,\n' +
 			'  which a 16 bit wide ROM allows\n');
 	}

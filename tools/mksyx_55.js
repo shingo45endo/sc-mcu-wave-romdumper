@@ -53,12 +53,12 @@ function parseEquates(text) {
 		if (!m) {
 			continue;
 		}
-		const raw = m[2].trim();
+		const rawValue = m[2].trim();
 		let v = null;
-		if (/^\$[0-9A-Fa-f]+$/u.test(raw)) {
-			v = parseInt(raw.slice(1), 16);
-		} else if (/^\d+$/u.test(raw)) {
-			v = parseInt(raw, 10);
+		if (/^\$[0-9A-Fa-f]+$/u.test(rawValue)) {
+			v = parseInt(rawValue.slice(1), 16);
+		} else if (/^\d+$/u.test(rawValue)) {
+			v = parseInt(rawValue, 10);
 		}
 		if (v !== null) {
 			equates[m[1].toUpperCase()] = v;
@@ -233,8 +233,8 @@ function main() {
 	const [firstKind] = dumpers;
 	const body = bodies[firstKind].slice(0, txOfs);
 	for (const kind of dumpers) {
-		const also = bodies[kind].slice(0, txOfs);
-		if (also.length !== body.length || also.some((e, i) => (e !== body[i]))) {
+		const otherBody = bodies[kind].slice(0, txOfs);
+		if (otherBody.length !== body.length || otherBody.some((e, i) => (e !== body[i]))) {
 			throw new Error(`dumper ${kind} has a different body from ${firstKind}: ` +
 				'the transmit modules are meant to be the only difference');
 		}

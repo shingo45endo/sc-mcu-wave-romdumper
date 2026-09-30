@@ -7,8 +7,8 @@
 
 const BLOCK_SIZE = 32;
 
-// `seen` maps a block to the {key, config} that claimed it, and is carried across every model and every family.
-export function checkSystemInfo(key, entries, config, seen) {
+// `claimedBlocks` maps a block to the {key, config} that claimed it, and is carried across every model and every family.
+export function checkSystemInfo(key, entries, config, claimedBlocks) {
 	for (const entry of entries) {
 		const isHexEncoded = ((entry.length === 64) && (/^[0-9a-fA-F]{64}$/u).test(entry));
 		if (!isHexEncoded && entry.length !== BLOCK_SIZE) {
@@ -18,26 +18,26 @@ export function checkSystemInfo(key, entries, config, seen) {
 		// Two models sharing a block is fine - the SC-55 and the SC-155 do - as long as they agree about the layout.
 		// Both spellings of the same bytes have to land on the same key, so the hex form is decoded first.
 		const block = decodeSystemInfo(entry);
-		const owner = seen.get(block);
+		const owner = claimedBlocks.get(block);
 		if (owner && owner.config !== config) {
 			throw new Error(`${key}: systemInfo ${JSON.stringify(entry)} is also ${owner.key}'s, ` +
 				`but ${key} is ${config} and ${owner.key} is ${owner.config}. ` +
 				'One block cannot name two wave ROM layouts');
 		}
-		seen.set(block, {key, config});
+		claimedBlocks.set(block, {key, config});
 	}
 }
 
 // What a published table has already claimed, so a generator that runs second can see the first one's models.
 export function readClaimedBlocks(models) {
-	const seen = new Map();
+	const claimedBlocks = new Map();
 	for (const [key, model] of Object.entries(models ?? {})) {
 		for (const entry of model.systemInfo ?? []) {
-			seen.set(decodeSystemInfo(entry), {key, config: model.config});
+			claimedBlocks.set(decodeSystemInfo(entry), {key, config: model.config});
 		}
 	}
 
-	return seen;
+	return claimedBlocks;
 }
 
 // The 32 bytes a catalogue entry stands for. An entry is normally those bytes as characters; 64 hex digits are

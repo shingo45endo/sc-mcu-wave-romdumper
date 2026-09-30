@@ -164,7 +164,7 @@ const {out} = values;
 const isDryRun = values['dry-run'];
 
 const addr = parseAddrOption('addr');
-const free = parseAddrOption('free');
+const freeOffset = parseAddrOption('free');
 
 if (positionals.length > 1) {
 	printUsageAndExit('more than one input file');
@@ -196,7 +196,7 @@ let result;
 try {
 	result = patchRom(rom, {
 		...((addr !== undefined) ? {loadAddr: addr} : {}),
-		...((free !== undefined) ? {freeOffset: free} : {}),
+		...((freeOffset !== undefined) ? {freeOffset} : {}),
 	});
 } catch (e) {
 	// patchRom() says why with a code; anything else really is an exception

@@ -79,9 +79,9 @@ for (const input of inputs) {
 	} catch (e) {
 		printUsageAndExit(`cannot read ${input}: ${e.message}`);
 	}
-	const one = loadCapture(bytes);
-	messages.push(...one);
-	process.stderr.write(`read ${path.basename(input)}: ${bytes.length} bytes, ${one.length} message(s)\n`);
+	const captureMessages = loadCapture(bytes);
+	messages.push(...captureMessages);
+	process.stderr.write(`read ${path.basename(input)}: ${bytes.length} bytes, ${captureMessages.length} message(s)\n`);
 }
 
 const isFileDump = messages.some((m) => (m[1] === 0x7e && m[3] === 0x07));
