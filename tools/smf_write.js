@@ -8,9 +8,9 @@ const DEFAULT_GAP_MS = 250;
 export function writeSmf(messages, {gapMs = DEFAULT_GAP_MS, name = ''} = {}) {
 	console.assert(gapMs >= 0, 'the gap between messages cannot be negative');
 	const eventBytes = [];
-	const push = (...b) => eventBytes.push(...b);
+	const push = (...values) => eventBytes.push(...values);
 
-	const nameBytes = Array.from(name, (c) => c.charCodeAt(0));
+	const nameBytes = Array.from(name, (character) => character.charCodeAt(0));
 	if (nameBytes.some((e) => (e < 0x20 || e > 0x7e))) {
 		throw new Error(`the track name ${JSON.stringify(name)} is not printable ASCII`);
 	}

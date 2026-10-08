@@ -22,7 +22,7 @@ const REASON_TEXTS = {
 	'handler-not-found':
 		() => 'the DT1 nibble handler was not found. Is this really an H8/500-based Sound Canvas ROM?',
 	'handler-ambiguous':
-		(d) => `the DT1 nibble handler pattern matched ${d.matchCount} times - ambiguous.`,
+		(details) => `the DT1 nibble handler pattern matched ${details.matchCount} times - ambiguous.`,
 	'handler-entry-not-found':
 		() => 'found the handler body but not its entry (no "RTS / ADD:G.W #2,R5" in front of it)',
 	'no-hook':
@@ -30,13 +30,13 @@ const REASON_TEXTS = {
 	'table-not-found':
 		() => 'the DT1 handler jump table was not found',
 	'table-ambiguous':
-		(d) => `found ${d.candidateCount} possible jump table entries - too many to choose safely.`,
+		(details) => `found ${details.candidateCount} possible jump table entries - too many to choose safely.`,
 	'no-table-entry':
 		() => 'no jump table entry',
 	'bank-has-no-free-run':
-		(d) => `H'${toHex(d.fixedAt, 5)} is not free, and its bank has no run of ${d.neededSize} free (H'FF) bytes.`,
+		(details) => `H'${toHex(details.fixedAt, 5)} is not free, and its bank has no run of ${details.neededSize} free (H'FF) bytes.`,
 	'free-run-too-short':
-		(d) => `this bank's longest free run is ${d.runSize} bytes; ${d.neededSize} are needed.`,
+		(details) => `this bank's longest free run is ${details.runSize} bytes; ${details.neededSize} are needed.`,
 	'load-address-out-of-range':
 		() => 'load address must fit in 20 bits',
 	'trampoline-outside-bank':
@@ -95,12 +95,12 @@ function describeAnalysis(result) {
 		lines.push(`jump table      H'${toHex(result.tableEntry, 5)}: ` +
 			`${toHexBytes(result.replaced)} -> ${toHexBytes(result.written)}`);
 		lines.push(`trampoline at   H'${toHex(result.trampolineAt, 5)}`);
-		const s = result.stub;
-		lines.push(`  ${toHexBytes(s.slice(0, 6)).padEnd(18)}CMP:G.W #H'${toHex(MAGIC_WORD, 4)},` +
+		const stub = result.stub;
+		lines.push(`  ${toHexBytes(stub.slice(0, 6)).padEnd(18)}CMP:G.W #H'${toHex(MAGIC_WORD, 4)},` +
 			`@H'${toHex((result.loadAddr + 2) & 0xffff, 4)}:16`);
-		lines.push(`  ${toHexBytes(s.slice(6, 8)).padEnd(18)}BNE     .+4`);
-		lines.push(`  ${toHexBytes(s.slice(8, 12)).padEnd(18)}PJSR    @H'${toHex(result.loadAddr, 5)}`);
-		lines.push(`  ${toHexBytes(s.slice(12, 15)).padEnd(18)}JMP     @H'${toHex(result.handler & 0xffff, 4)}`);
+		lines.push(`  ${toHexBytes(stub.slice(6, 8)).padEnd(18)}BNE     .+4`);
+		lines.push(`  ${toHexBytes(stub.slice(8, 12)).padEnd(18)}PJSR    @H'${toHex(result.loadAddr, 5)}`);
+		lines.push(`  ${toHexBytes(stub.slice(12, 15)).padEnd(18)}JMP     @H'${toHex(result.handler & 0xffff, 4)}`);
 	}
 	if (result.rom) {
 		lines.push(`CRC32 after     ${toHex(result.crc32, 8)}${

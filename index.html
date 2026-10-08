@@ -133,9 +133,9 @@
 			'no-table-entry':
 				'Not worked out: the jump table above was not found.',
 			'bank-has-no-free-run':
-				(d) => `This image has no ${d.neededSize} free bytes anywhere the patch could reach.`,
+				(details) => `This image has no ${details.neededSize} free bytes anywhere the patch could reach.`,
 			'free-run-too-short':
-				(d) => `The largest free space the patch can reach is ${d.runSize} bytes, and ${d.neededSize} are needed.`,
+				(details) => `The largest free space the patch can reach is ${details.runSize} bytes, and ${details.neededSize} are needed.`,
 			'load-address-out-of-range':
 				'That RAM address does not fit in 20 bits.',
 			'trampoline-outside-bank':
@@ -155,7 +155,7 @@
 			'ram-page-not-found':
 				'This image never sets the page its own data lives in, so the stub would not know where to look.',
 			'ram-page-ambiguous':
-				(d) => `Two pages look equally likely for this firmware's own data: H'${toHex(d.page)} and H'${toHex(d.runnerUpPage)}.`,
+				(details) => `Two pages look equally likely for this firmware's own data: H'${toHex(details.page)} and H'${toHex(details.runnerUpPage)}.`,
 		};
 
 		// `what` is whatever carried the code: a hook, table or stub result, or the details of a patch error.
@@ -191,7 +191,7 @@
 				throw firstError;
 			}
 
-			return attempts.find((one) => one.info.hook.isOk) ?? attempts[0];
+			return attempts.find((attempt) => attempt.info.hook.isOk) ?? attempts[0];
 		}
 
 		const elemDrop     = document.getElementById('my-droparea');
@@ -391,32 +391,32 @@
 		}
 
 		function formatStub55(result) {
-			const s = result.stub;
+			const stub = result.stub;
 			const addr = result.loadAddr;
 
 			return `H'${toHex(result.tableEntry, 5)}  ${toHexBytes(result.replaced)} -> ${toHexBytes(result.written)}   the jump table entry\n\n` +
-				`H'${toHex(result.trampolineAt, 5)}  ${toHexBytes(s.slice(0, 6)).padEnd(18)}CMP:G.W #H'${toHex(MAGIC_WORD, 4)},@H'${toHex((addr + 2) & 0xffff, 4)}:16\n` +
-				`         ${toHexBytes(s.slice(6, 8)).padEnd(18)}BNE     .+4\n` +
-				`         ${toHexBytes(s.slice(8, 12)).padEnd(18)}PJSR    @H'${toHex(addr, 5)}\n` +
-				`         ${toHexBytes(s.slice(12, 15)).padEnd(18)}JMP     @H'${toHex(result.handler & 0xffff, 4)}`;
+				`H'${toHex(result.trampolineAt, 5)}  ${toHexBytes(stub.slice(0, 6)).padEnd(18)}CMP:G.W #H'${toHex(MAGIC_WORD, 4)},@H'${toHex((addr + 2) & 0xffff, 4)}:16\n` +
+				`         ${toHexBytes(stub.slice(6, 8)).padEnd(18)}BNE     .+4\n` +
+				`         ${toHexBytes(stub.slice(8, 12)).padEnd(18)}PJSR    @H'${toHex(addr, 5)}\n` +
+				`         ${toHexBytes(stub.slice(12, 15)).padEnd(18)}JMP     @H'${toHex(result.handler & 0xffff, 4)}`;
 		}
 
 		// The SC-88 stub saves the page register around the call and puts it back, because the handler it returns to
 		// expects its own. That is what makes it longer than the other family's.
 		function formatStub88(result) {
-			const s = result.stub;
+			const stub = result.stub;
 			const {entry} = result;
 			const entryText = `H'${toHex(entry.offset, 5)}  ${toHexBytes(entry.replaced)} -> ${toHexBytes(entry.written)}   the jump table entry,` +
 				` parameter H'${toHex(entry.paramNo, 4)}`;
 
 			return `${entryText}\n\n` +
-				`H'${toHex(result.trampolineAt, 5)}  ${toHexBytes(s.slice(0, 2)).padEnd(18)}STC.B   DP,@-SP\n` +
-				`         ${toHexBytes(s.slice(2, 5)).padEnd(18)}LDC.B   #H'${toHex(result.ramPage)},DP\n` +
-				`         ${toHexBytes(s.slice(5, 11)).padEnd(18)}CMP:G.W #H'${toHex(MAGIC_WORD, 4)},@H'${toHex((result.loadAddr + 2) & 0xffff, 4)}:16\n` +
-				`         ${toHexBytes(s.slice(11, 13)).padEnd(18)}BNE     .+4\n` +
-				`         ${toHexBytes(s.slice(13, 17)).padEnd(18)}PJSR    @H'${toHex(result.loadAddr, 6)}\n` +
-				`         ${toHexBytes(s.slice(17, 19)).padEnd(18)}LDC.B   @SP+,DP\n` +
-				`         ${toHexBytes(s.slice(19, 22)).padEnd(18)}JMP     @H'${toHex(result.handler & 0xffff, 4)}`;
+				`H'${toHex(result.trampolineAt, 5)}  ${toHexBytes(stub.slice(0, 2)).padEnd(18)}STC.B   DP,@-SP\n` +
+				`         ${toHexBytes(stub.slice(2, 5)).padEnd(18)}LDC.B   #H'${toHex(result.ramPage)},DP\n` +
+				`         ${toHexBytes(stub.slice(5, 11)).padEnd(18)}CMP:G.W #H'${toHex(MAGIC_WORD, 4)},@H'${toHex((result.loadAddr + 2) & 0xffff, 4)}:16\n` +
+				`         ${toHexBytes(stub.slice(11, 13)).padEnd(18)}BNE     .+4\n` +
+				`         ${toHexBytes(stub.slice(13, 17)).padEnd(18)}PJSR    @H'${toHex(result.loadAddr, 6)}\n` +
+				`         ${toHexBytes(stub.slice(17, 19)).padEnd(18)}LDC.B   @SP+,DP\n` +
+				`         ${toHexBytes(stub.slice(19, 22)).padEnd(18)}JMP     @H'${toHex(result.handler & 0xffff, 4)}`;
 		}
 
 		elemPatch.addEventListener('click', () => {

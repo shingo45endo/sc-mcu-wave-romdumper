@@ -84,7 +84,7 @@ for (const input of inputs) {
 	process.stderr.write(`read ${path.basename(input)}: ${bytes.length} bytes, ${captureMessages.length} message(s)\n`);
 }
 
-const isFileDump = messages.some((m) => (m[1] === 0x7e && m[3] === 0x07));
+const isFileDump = messages.some((message) => (message[1] === 0x7e && message[3] === 0x07));
 const files = (isFileDump) ? readFileDump() : readBulkDump();
 
 if (!files.length) {

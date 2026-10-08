@@ -93,9 +93,9 @@ const windows = [];
 let mcu = null;
 let header = null;
 for (const file of files) {
-	const m = /^W([0-9A-Fa-f]{6})\.BIN$/u.exec(file.name);
-	if (m) {
-		windows.push({base: parseInt(m[1], 16), bytes: file.bytes, file});
+	const match = /^W([0-9A-Fa-f]{6})\.BIN$/u.exec(file.name);
+	if (match) {
+		windows.push({base: parseInt(match[1], 16), bytes: file.bytes, file});
 	} else if (/^HEADER\.BIN$/iu.test(file.name)) {
 		header = file;
 	} else if (/MCU/iu.test(file.name)) {
@@ -117,11 +117,11 @@ for (const window of windows) {
 		continue;
 	}
 
-	const k = toHexKey(window.bytes);
-	if (seenBases.has(k)) {
-		window.mirrorOf = seenBases.get(k);
+	const contentKey = toHexKey(window.bytes);
+	if (seenBases.has(contentKey)) {
+		window.mirrorOf = seenBases.get(contentKey);
 	} else {
-		seenBases.set(k, window.base);
+		seenBases.set(contentKey, window.base);
 	}
 }
 

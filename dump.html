@@ -486,24 +486,24 @@
 			}
 
 			const chosenModel = getCurrentModel();
-			const v = evaluateSystemInfo(detectedReply, {
+			const verdict = evaluateSystemInfo(detectedReply, {
 				models, notOffered: NOT_SUPPORTED_ON_BROWSER, selected: chosenModel?.key,
 			});
 			// One block can name two models that share a layout - the SC-55 and the SC-155 do - so this is a list.
-			const identifiedLabel = (v.labels) ? v.labels.join(' or ') : null;
+			const identifiedLabel = (verdict.labels) ? verdict.labels.join(' or ') : null;
 
-			if (v.kind === 'match' || v.kind === 'mismatch') {
-				for (const key of v.keys) {
+			if (verdict.kind === 'match' || verdict.kind === 'mismatch') {
+				for (const key of verdict.keys) {
 					elemModels.querySelector(`[data-badge="${key}"]`)?.classList.remove('d-none');
 				}
-				if (v.kind === 'mismatch') {
+				if (verdict.kind === 'mismatch') {
 					concern = `The synth identified itself as ${identifiedLabel}, but the dump is set to ${chosenModel.label}. ` +
-						`These two use different wave ROM layouts (${v.config} vs. ${chosenModel.config}). If you continue, ` +
+						`These two use different wave ROM layouts (${verdict.config} vs. ${chosenModel.config}). If you continue, ` +
 						'you would get the wrong ROM data.';
 				}
-			} else if (v.kind === 'elsewhere') {
-				if (chosenModel && chosenModel.config !== v.config) {
-					concern = `The synth identified itself as ${identifiedLabel} (layout: ${v.config}). ` +
+			} else if (verdict.kind === 'elsewhere') {
+				if (chosenModel && chosenModel.config !== verdict.config) {
+					concern = `The synth identified itself as ${identifiedLabel} (layout: ${verdict.config}). ` +
 						`But the dump is set to ${chosenModel.label} (layout: ${chosenModel.config}) instead.`;
 				}
 			} else {
@@ -513,8 +513,8 @@
 			}
 
 			elemVerdict.className = 'form-text mt-1';
-			const info = v.text || 'not text - the log has the 32 bytes';
-			elemVerdict.appendChild(buildRow('System information', info, (v.text) ? 'code' : 'span'));
+			const info = verdict.text || 'not text - the log has the 32 bytes';
+			elemVerdict.appendChild(buildRow('System information', info, (verdict.text) ? 'code' : 'span'));
 			if (identifiedLabel) {
 				elemVerdict.appendChild(buildRow('Identified as', identifiedLabel, 'strong'));
 			}
@@ -775,9 +775,9 @@
 		// stays in the table rather than being missing from it, and a name nobody expected is added at the end.
 		function getFileRows() {
 			const arrivedFiles = getArrivedFiles();
-			const out = (currentModel?.files ?? []).map((one, chipNo) => {
-				const file = arrivedFiles.find((e) => (e.name === one.name)) ??
-					{name: one.name, size: one.size, received: 0, packets: 0, errors: [], isComplete: false};
+			const out = (currentModel?.files ?? []).map((catalogueFile, chipNo) => {
+				const file = arrivedFiles.find((e) => (e.name === catalogueFile.name)) ??
+					{name: catalogueFile.name, size: catalogueFile.size, received: 0, packets: 0, errors: [], isComplete: false};
 
 				return {...file, chipNo, isWanted: isChipWanted(chipNo)};
 			});
@@ -1323,8 +1323,8 @@
 				const manifest = await (await fetch(`${SYX_DIR}models.json`)).json();
 				// A synth picks a wave ROM layout; several share one. Flatten the two into what the rest of this file wants.
 				models = Object.fromEntries(Object.entries(manifest.models).
-					filter(([, m]) => manifest.configs[m.config]).
-					map(([key, m]) => [key, {...manifest.configs[m.config], ...m, key}]));
+					filter(([, model]) => manifest.configs[model.config]).
+					map(([key, model]) => [key, {...manifest.configs[model.config], ...model, key}]));
 			} catch {
 				showError(`Could not read ${SYX_DIR}models.json. Run "make" to build the prepared SysEx files.`);
 				return;

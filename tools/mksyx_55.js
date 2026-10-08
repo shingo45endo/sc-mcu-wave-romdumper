@@ -49,19 +49,19 @@ function formatSmfTitle(stepNo, what) {
 function parseEquates(text) {
 	const equates = {};
 	for (const line of text.split(/\r?\n/u)) {
-		const m = /^([A-Za-z_.][A-Za-z_.0-9]*)\s+equ\s+([^;]+)/iu.exec(line);
-		if (!m) {
+		const match = /^([A-Za-z_.][A-Za-z_.0-9]*)\s+equ\s+([^;]+)/iu.exec(line);
+		if (!match) {
 			continue;
 		}
-		const rawValue = m[2].trim();
-		let v = null;
+		const rawValue = match[2].trim();
+		let value = null;
 		if (/^\$[0-9A-Fa-f]+$/u.test(rawValue)) {
-			v = parseInt(rawValue.slice(1), 16);
+			value = parseInt(rawValue.slice(1), 16);
 		} else if (/^\d+$/u.test(rawValue)) {
-			v = parseInt(rawValue, 10);
+			value = parseInt(rawValue, 10);
 		}
-		if (v !== null) {
-			equates[m[1].toUpperCase()] = v;
+		if (value !== null) {
+			equates[match[1].toUpperCase()] = value;
 		}
 	}
 
@@ -96,8 +96,8 @@ function parseTable(table) {
 			end++;
 		}
 		let name = '';
-		for (let k = i + 8; k < end; k++) {
-			name += String.fromCharCode(bytes[k]);
+		for (let at = i + 8; at < end; at++) {
+			name += String.fromCharCode(bytes[at]);
 		}
 		console.assert(size > 0, `the file table entry at ${i} asks for no bytes`);
 		files.push({
@@ -181,8 +181,8 @@ function main() {
 
 	// Discover the dumpers the assembler built, and read each one in.
 	const dumpers = fs.readdirSync(binDir).
-		filter((f) => (/^dumper_.+[.]bin$/u).test(f)).
-		map((f) => f.slice('dumper_'.length, -'.bin'.length)).
+		filter((name) => (/^dumper_.+[.]bin$/u).test(name)).
+		map((name) => name.slice('dumper_'.length, -'.bin'.length)).
 		sort();
 	if (!dumpers.length) {
 		process.stderr.write(`mksyx: no dumper_*.bin in ${binDir} - run "make" first (it needs asl and p2bin)\n`);
@@ -200,9 +200,9 @@ function main() {
 	// Discover the tables the assembler built.
 
 	const tables = fs.readdirSync(binDir).
-		filter((f) => f.endsWith('.bin')).
-		map((f) => f.slice(0, -'.bin'.length)).
-		filter((f) => (f === 'probe' || (/^(mcu-)?wave-/u).test(f))).
+		filter((name) => name.endsWith('.bin')).
+		map((name) => name.slice(0, -'.bin'.length)).
+		filter((name) => (name === 'probe' || (/^(mcu-)?wave-/u).test(name))).
 		sort();
 
 	fs.mkdirSync(outDir, {recursive: true});
@@ -341,8 +341,8 @@ function main() {
 		// - "Roland CM-300, SCC-1" - so synths are separated with a slash, and the time goes in parentheses at the end.
 		// The probe belongs to no model, so it names its transmit path instead.
 		const users = Object.values(models).
-			filter((m) => (m.dumper === kind && m.config === name)).
-			map((m) => m.label);
+			filter((model) => (model.dumper === kind && model.config === name)).
+			map((model) => model.label);
 		const what = (users.length) ? users.join(' / ') : `${name} over the ${getCpuLabel(kind)}`;
 
 		fs.writeFileSync(path.join(outDir, `${stem}.syx`), concatSysex(allMessages));
@@ -366,14 +366,14 @@ function main() {
 	process.stderr.write(`loads at H'${toHex(loadAddr)}, table at +H'${toHex(tableOfs)}\n`);
 	const kindWidth = Math.max(...dumpers.map((kind) => kind.length)) + 1;
 	for (const kind of dumpers) {
-		const users = Object.entries(models).filter(([, model]) => (model.dumper === kind)).map(([k]) => k);
+		const users = Object.entries(models).filter(([, model]) => (model.dumper === kind)).map(([key]) => key);
 		process.stderr.write(`  dumper ${kind.padEnd(kindWidth)}${String(bodies[kind].length).padStart(4)}` +
 			` bytes   ${(users.length) ? users.join(', ') : '(no synth uses it)'}\n`);
 	}
 	const nameWidth = Math.max(...tables.map((name) => name.length)) + 1;
 	for (const name of tables) {
 		const config = configs[name];
-		const users = Object.entries(models).filter(([, model]) => (model.config === name)).map(([k]) => k);
+		const users = Object.entries(models).filter(([, model]) => (model.config === name)).map(([key]) => key);
 		process.stderr.write(`  ${name.padEnd(nameWidth)}${String(config.files.length).padStart(3)} file(s)` +
 			// a column of its own, so the synths below start in the same place whether or not this one is flagged
 			`  ${((config.isLayoutConfirmed) ? '' : 'unconfirmed').padEnd('unconfirmed'.length)}` +

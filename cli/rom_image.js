@@ -31,8 +31,8 @@ function printUsageAndExit(message) {
 	process.exit((message) ? 2 : 0);
 }
 
-function isSame(a, b) {
-	return (a.length === b.length) && a.every((byte, i) => (byte === b[i]));
+function isSame(left, right) {
+	return (left.length === right.length) && left.every((byte, i) => (byte === right[i]));
 }
 
 function readInputFile(input) {
@@ -82,10 +82,10 @@ if (isCheck) {
 	}
 	const chipBytes = readInputFile(inputs[0]);
 	const dumpImage = convertToRomImage(readInputFile(inputs[1]), {scramble});
-	const n = Math.min(chipBytes.length, dumpImage.length);
+	const compareSize = Math.min(chipBytes.length, dumpImage.length);
 	let badCount = 0;
 	let firstBadAt = -1;
-	for (let i = 0; i < n; i++) {
+	for (let i = 0; i < compareSize; i++) {
 		if (chipBytes[i] !== dumpImage[i]) {
 			if (firstBadAt < 0) {
 				firstBadAt = i;
@@ -95,7 +95,7 @@ if (isCheck) {
 	}
 	process.stderr.write(`${path.basename(inputs[0])}: ${chipBytes.length} bytes\n`);
 	process.stderr.write(`${path.basename(inputs[1])}: ${dumpImage.length} bytes as a ROM image\n`);
-	process.stderr.write(`compared ${n} bytes, ${badCount} differ${(firstBadAt < 0) ? '' : ` (first at H'${firstBadAt.toString(16).toUpperCase()})`}\n`);
+	process.stderr.write(`compared ${compareSize} bytes, ${badCount} differ${(firstBadAt < 0) ? '' : ` (first at H'${firstBadAt.toString(16).toUpperCase()})`}\n`);
 	// A wave ROM is 16 bits wide, so a reader can hand one back the other way round.
 	if (badCount > 0 && isSame(swapBytes(chipBytes), dumpImage)) {
 		process.stderr.write('  they are the same image: one of them was read out the other way round,\n' +
