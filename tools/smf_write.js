@@ -8,22 +8,22 @@ const DEFAULT_GAP_MS = 250;
 export function writeSmf(messages, {gapMs = DEFAULT_GAP_MS, name = ''} = {}) {
 	console.assert(gapMs >= 0, 'the gap between messages cannot be negative');
 	const eventBytes = [];
-	const push = (...b) => eventBytes.push(...b);
+	const push = (...values) => eventBytes.push(...values);
 
-	const nameBytes = Array.from(name, (c) => c.charCodeAt(0));
+	const nameBytes = Array.from(name, (character) => character.charCodeAt(0));
 	if (nameBytes.some((e) => (e < 0x20 || e > 0x7e))) {
 		throw new Error(`the track name ${JSON.stringify(name)} is not printable ASCII`);
 	}
 
 	push(...toVlq(0), 0xff, 0x03, ...toVlq(nameBytes.length), ...nameBytes);
 	push(...toVlq(0), 0xff, 0x51, 0x03, 0x0f, 0x42, 0x40);       // 1 000 000 us
-	let prev = null;
+	let prevMessage = null;
 	for (const entry of messages) {
 		const bytes = entry.bytes ?? entry;
 		const wait = entry.gapMs ?? gapMs;
 		console.assert(wait >= 0, 'the gap after a message cannot be negative');
-		push(...toVlq((prev) ? calcTransferMs(prev.size) + prev.gapMs : 0));
-		prev = {size: bytes.length, gapMs: wait};
+		push(...toVlq((prevMessage) ? calcTransferMs(prevMessage.size) + prevMessage.gapMs : 0));
+		prevMessage = {size: bytes.length, gapMs: wait};
 		push(0xf0, ...toVlq(bytes.length - 1), ...bytes.slice(1));
 	}
 	push(...toVlq(0), 0xff, 0x2f, 0x00);

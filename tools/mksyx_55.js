@@ -18,12 +18,12 @@ import url from 'node:url';
 import util from 'node:util';
 
 import {formatDuration, toHex} from '../lib/format.js';
-import {gsResetMessage, triggerMessage} from '../lib/gs_message.js';
+import {gsResetMessage} from '../lib/gs_message.js';
+import {triggerMessage} from '../lib/hook.js';
 
 import {buildBulkMessages} from './bulk_load.js';
-import {parseTable, estimateDumpTime, SOURCE_NAMES} from './file_table_55.js';
 import {writeSmf, concatSysex} from './smf_write.js';
-import {checkSystemInfo} from './system_info.js';
+import {checkSystemInfo, decodeSystemInfo} from './system_info.js';
 
 const ROOT = path.join(path.dirname(url.fileURLToPath(import.meta.url)), '..');
 
@@ -49,23 +49,77 @@ function formatSmfTitle(stepNo, what) {
 function parseEquates(text) {
 	const equates = {};
 	for (const line of text.split(/\r?\n/u)) {
-		const m = /^([A-Za-z_.][A-Za-z_.0-9]*)\s+equ\s+([^;]+)/iu.exec(line);
-		if (!m) {
+		const match = /^([A-Za-z_.][A-Za-z_.0-9]*)\s+equ\s+([^;]+)/iu.exec(line);
+		if (!match) {
 			continue;
 		}
-		const raw = m[2].trim();
-		let v = null;
-		if (/^\$[0-9A-Fa-f]+$/u.test(raw)) {
-			v = parseInt(raw.slice(1), 16);
-		} else if (/^\d+$/u.test(raw)) {
-			v = parseInt(raw, 10);
+		const rawValue = match[2].trim();
+		let value = null;
+		if (/^\$[0-9A-Fa-f]+$/u.test(rawValue)) {
+			value = parseInt(rawValue.slice(1), 16);
+		} else if (/^\d+$/u.test(rawValue)) {
+			value = parseInt(rawValue, 10);
 		}
-		if (v !== null) {
-			equates[m[1].toUpperCase()] = v;
+		if (value !== null) {
+			equates[match[1].toUpperCase()] = value;
 		}
 	}
 
 	return equates;
+}
+
+// Reading a file table back out of the binary the assembler built.
+const SRC_MCU = 0;              // page 0 of the CPU address space
+const SRC_PCM = 1;              // through the PCM chip's wave ROM read port
+const SRC_END = 0xff;
+
+const PACKET_BYTES = 112;       // file bytes carried by one dump packet
+
+const SOURCE_NAMES = {[SRC_MCU]: 'mcu', [SRC_PCM]: 'wave'};
+
+// Bytes -> the files the table lists. `table` starts at the table's first byte.
+function parseTable(table) {
+	const bytes = (table instanceof Uint8Array) ? table : new Uint8Array(table);
+	let i = 0;
+	while (i + 3 < bytes.length && (bytes[i] || bytes[i + 1])) {
+		i += 4;
+	}
+	i += 2;	// the H'0000 terminator
+
+	const files = [];
+	while (i < bytes.length && bytes[i] !== SRC_END) {
+		const source = bytes[i];
+		const addr = (bytes[i + 1] << 16) | (bytes[i + 2] << 8) | bytes[i + 3];
+		const size = (bytes[i + 4] << 16) | (bytes[i + 6] << 8) | bytes[i + 7];
+		let end = i + 8;
+		while (end < bytes.length && bytes[end]) {
+			end++;
+		}
+		let name = '';
+		for (let at = i + 8; at < end; at++) {
+			name += String.fromCharCode(bytes[at]);
+		}
+		console.assert(size > 0, `the file table entry at ${i} asks for no bytes`);
+		files.push({
+			source, addr, size, name,
+			packets: Math.ceil(size / PACKET_BYTES),
+			offset: i,
+		});
+		i = (end + 2) & ~1;	// past the NUL, then even
+	}
+	if (i >= bytes.length) {
+		throw new Error('the file table has no H\'FF terminator');
+	}
+
+	return files;
+}
+
+// How much MIDI a table's worth of dumping is, and how long it takes.
+function estimateDumpTime({files}) {
+	const packets = files.reduce((p, file) => p + file.packets, 0);
+	const midiBytes = packets * 137 + files.length * 30;	// a data packet is 137 bytes on the wire, a header about 30
+
+	return {packets, midiBytes, seconds: Math.round(midiBytes / 3125)};
 }
 
 function getCpuLabel(kind) {
@@ -127,8 +181,8 @@ function main() {
 
 	// Discover the dumpers the assembler built, and read each one in.
 	const dumpers = fs.readdirSync(binDir).
-		filter((f) => (/^dumper_.+[.]bin$/u).test(f)).
-		map((f) => f.slice('dumper_'.length, -'.bin'.length)).
+		filter((name) => (/^dumper_.+[.]bin$/u).test(name)).
+		map((name) => name.slice('dumper_'.length, -'.bin'.length)).
 		sort();
 	if (!dumpers.length) {
 		process.stderr.write(`mksyx: no dumper_*.bin in ${binDir} - run "make" first (it needs asl and p2bin)\n`);
@@ -146,9 +200,9 @@ function main() {
 	// Discover the tables the assembler built.
 
 	const tables = fs.readdirSync(binDir).
-		filter((f) => f.endsWith('.bin')).
-		map((f) => f.slice(0, -'.bin'.length)).
-		filter((f) => (f === 'probe' || (/^(mcu-)?wave-/u).test(f))).
+		filter((name) => name.endsWith('.bin')).
+		map((name) => name.slice(0, -'.bin'.length)).
+		filter((name) => (name === 'probe' || (/^(mcu-)?wave-/u).test(name))).
 		sort();
 
 	fs.mkdirSync(outDir, {recursive: true});
@@ -179,8 +233,8 @@ function main() {
 	const [firstKind] = dumpers;
 	const body = bodies[firstKind].slice(0, txOfs);
 	for (const kind of dumpers) {
-		const also = bodies[kind].slice(0, txOfs);
-		if (also.length !== body.length || also.some((e, i) => (e !== body[i]))) {
+		const otherBody = bodies[kind].slice(0, txOfs);
+		if (otherBody.length !== body.length || otherBody.some((e, i) => (e !== body[i]))) {
 			throw new Error(`dumper ${kind} has a different body from ${firstKind}: ` +
 				'the transmit modules are meant to be the only difference');
 		}
@@ -216,10 +270,10 @@ function main() {
 			formatSmfTitle(3, `file table ${name}, ${files.length} file(s) (${formatDuration(seconds)})`),
 		);
 
-		const declared = catalogue.configs?.[name] ?? {};
+		const declaredConfig = catalogue.configs?.[name] ?? {};
 		configs[name] = {
-			note: declared.note ?? '',
-			isLayoutConfirmed: declared.isLayoutConfirmed ?? false,
+			note: declaredConfig.note ?? '',
+			isLayoutConfirmed: declaredConfig.isLayoutConfirmed ?? false,
 			table: `03-${name}.syx`,
 			trigger: '04-trigger.syx',
 			files: files.map((file) => ({
@@ -265,7 +319,7 @@ function main() {
 		};
 		if (model.systemInfo) {
 			checkSystemInfo(key, model.systemInfo, model.config, claimedBlocks);
-			models[key].systemInfo = model.systemInfo;
+			models[key].systemInfo = model.systemInfo.map(decodeSystemInfo);
 		}
 	}
 
@@ -287,8 +341,8 @@ function main() {
 		// - "Roland CM-300, SCC-1" - so synths are separated with a slash, and the time goes in parentheses at the end.
 		// The probe belongs to no model, so it names its transmit path instead.
 		const users = Object.values(models).
-			filter((m) => (m.dumper === kind && m.config === name)).
-			map((m) => m.label);
+			filter((model) => (model.dumper === kind && model.config === name)).
+			map((model) => model.label);
 		const what = (users.length) ? users.join(' / ') : `${name} over the ${getCpuLabel(kind)}`;
 
 		fs.writeFileSync(path.join(outDir, `${stem}.syx`), concatSysex(allMessages));
@@ -312,14 +366,14 @@ function main() {
 	process.stderr.write(`loads at H'${toHex(loadAddr)}, table at +H'${toHex(tableOfs)}\n`);
 	const kindWidth = Math.max(...dumpers.map((kind) => kind.length)) + 1;
 	for (const kind of dumpers) {
-		const users = Object.entries(models).filter(([, model]) => (model.dumper === kind)).map(([k]) => k);
+		const users = Object.entries(models).filter(([, model]) => (model.dumper === kind)).map(([key]) => key);
 		process.stderr.write(`  dumper ${kind.padEnd(kindWidth)}${String(bodies[kind].length).padStart(4)}` +
 			` bytes   ${(users.length) ? users.join(', ') : '(no synth uses it)'}\n`);
 	}
 	const nameWidth = Math.max(...tables.map((name) => name.length)) + 1;
 	for (const name of tables) {
 		const config = configs[name];
-		const users = Object.entries(models).filter(([, model]) => (model.config === name)).map(([k]) => k);
+		const users = Object.entries(models).filter(([, model]) => (model.config === name)).map(([key]) => key);
 		process.stderr.write(`  ${name.padEnd(nameWidth)}${String(config.files.length).padStart(3)} file(s)` +
 			// a column of its own, so the synths below start in the same place whether or not this one is flagged
 			`  ${((config.isLayoutConfirmed) ? '' : 'unconfirmed').padEnd('unconfirmed'.length)}` +

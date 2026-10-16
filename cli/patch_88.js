@@ -16,36 +16,36 @@ import process from 'node:process';
 import util from 'node:util';
 
 import {toHex, toHexBytes} from '../lib/format.js';
-import {MAGIC_WORD, triggerSysEx} from '../lib/hook.js';
+import {MAGIC_WORD, triggerMessage} from '../lib/hook.js';
 import {analyzeRom, patchRom} from '../lib/patcher_88.js';
 
 const REASON_TEXTS = {
 	'handler-not-found':
 		() => 'the DT1 nibble handler was not found. Is this really an SC-88 family ROM?',
 	'handler-ambiguous':
-		(d) => `the DT1 nibble handler pattern matched ${d.matchCount} times - ambiguous.`,
+		(details) => `the DT1 nibble handler pattern matched ${details.matchCount} times - ambiguous.`,
 	'no-hook':
 		() => 'no hook',
 	'table-entry-not-found':
 		() => 'the parameter table entry for 40 1x 17 was not found',
 	'table-entry-ambiguous':
-		(d) => `the parameter table has ${d.matchCount} entries for 40 1x 17 - ambiguous.`,
+		(details) => `the parameter table has ${details.matchCount} entries for 40 1x 17 - ambiguous.`,
 	'no-table-entry':
 		() => 'no parameter table entry',
 	'bulk-table-not-found':
 		() => 'the bulk dump region table was not found, so the load address cannot be read out of the ROM',
 	'bulk-table-ambiguous':
-		(d) => `found ${d.candidateCount} possible bulk dump region tables - too many to choose safely.`,
+		(details) => `found ${details.candidateCount} possible bulk dump region tables - too many to choose safely.`,
 	'load-region-not-found':
 		() => 'the bulk dump region table has no drum map 2 entry',
 	'bank-has-no-free-run':
-		(d) => `this bank has no gap of ${d.neededSize} free (H'FF) bytes between two used areas; ` +
-			`its longest run of free bytes is ${d.longestSize}.`,
+		(details) => `this bank has no gap of ${details.neededSize} free (H'FF) bytes between two used areas; ` +
+			`its longest run of free bytes is ${details.longestSize}.`,
 	'ram-page-not-found':
 		() => 'the firmware never loads a page into DP, so the RAM page cannot be read out of the ROM. Give --page.',
 	'ram-page-ambiguous':
-		(d) => `the RAM page is a toss-up: H'${toHex(d.page)} appears ${d.count} times and ` +
-			`H'${toHex(d.runnerUpPage)} ${d.runnerUpCount} times. Give --page.`,
+		(details) => `the RAM page is a toss-up: H'${toHex(details.page)} appears ${details.count} times and ` +
+			`H'${toHex(details.runnerUpPage)} ${details.runnerUpCount} times. Give --page.`,
 	'load-address-out-of-range':
 		() => 'the page must fit in 8 bits and the address in 16',
 	'trampoline-outside-bank':
@@ -128,19 +128,19 @@ function describeAnalysis(result) {
 			`${toHexBytes(entry.replaced)} -> ${toHexBytes(entry.written)}  ` +
 			`(parameter H'${toHex(entry.paramNo, 4)})`);
 		lines.push(`trampoline at   H'${toHex(result.trampolineAt, 5)}`);
-		const s = result.stub;
-		lines.push(`  ${toHexBytes(s.slice(0, 2)).padEnd(18)}STC.B   DP,@-SP`);
-		lines.push(`  ${toHexBytes(s.slice(2, 5)).padEnd(18)}LDC.B   #H'${toHex(result.ramPage)},DP`);
-		lines.push(`  ${toHexBytes(s.slice(5, 11)).padEnd(18)}CMP:G.W #H'${toHex(MAGIC_WORD, 4)},` +
+		const stub = result.stub;
+		lines.push(`  ${toHexBytes(stub.slice(0, 2)).padEnd(18)}STC.B   DP,@-SP`);
+		lines.push(`  ${toHexBytes(stub.slice(2, 5)).padEnd(18)}LDC.B   #H'${toHex(result.ramPage)},DP`);
+		lines.push(`  ${toHexBytes(stub.slice(5, 11)).padEnd(18)}CMP:G.W #H'${toHex(MAGIC_WORD, 4)},` +
 			`@H'${toHex((result.loadAddr + 2) & 0xffff, 4)}:16`);
-		lines.push(`  ${toHexBytes(s.slice(11, 13)).padEnd(18)}BNE     .+4`);
-		lines.push(`  ${toHexBytes(s.slice(13, 17)).padEnd(18)}PJSR    @H'${toHex(result.loadAddr, 6)}`);
-		lines.push(`  ${toHexBytes(s.slice(17, 19)).padEnd(18)}LDC.B   @SP+,DP`);
-		lines.push(`  ${toHexBytes(s.slice(19, 22)).padEnd(18)}JMP     @H'${toHex(result.handler & 0xffff, 4)}`);
+		lines.push(`  ${toHexBytes(stub.slice(11, 13)).padEnd(18)}BNE     .+4`);
+		lines.push(`  ${toHexBytes(stub.slice(13, 17)).padEnd(18)}PJSR    @H'${toHex(result.loadAddr, 6)}`);
+		lines.push(`  ${toHexBytes(stub.slice(17, 19)).padEnd(18)}LDC.B   @SP+,DP`);
+		lines.push(`  ${toHexBytes(stub.slice(19, 22)).padEnd(18)}JMP     @H'${toHex(result.handler & 0xffff, 4)}`);
 		lines.push(`CRC32 after     ${toHex(result.crc32, 8)}${
 			(result.isUnchanged) ? '  (unchanged: it was already patched like this)' : ''}`);
 		lines.push('');
-		lines.push(`trigger SysEx   ${toHexBytes(triggerSysEx())}`);
+		lines.push(`trigger SysEx   ${toHexBytes(triggerMessage())}`);
 	}
 
 	return lines.join('\n');
@@ -198,7 +198,7 @@ const isDryRun = values['dry-run'];
 
 const addr = parseHexOption(values, 'addr');
 const ramPage = parseHexOption(values, 'page');
-const free = parseHexOption(values, 'free');
+const freeOffset = parseHexOption(values, 'free');
 
 if (positionals.length > 1) {
 	printUsageAndExit('more than one input file');
@@ -219,7 +219,7 @@ try {
 const patchOptions = {
 	...((addr !== undefined) ? {loadAddr: addr} : {}),
 	...((ramPage !== undefined) ? {ramPage} : {}),
-	...((free !== undefined) ? {freeOffset: free} : {}),
+	...((freeOffset !== undefined) ? {freeOffset} : {}),
 };
 
 // A dry run has to predict the real run, so it patches in memory with the same options and reports that. Only the
@@ -258,7 +258,7 @@ process.stderr.write(`${describeAnalysis(result)}\n`);
 // it is already done.
 if (result.isUnchanged) {
 	process.stderr.write(`\npatch_88: already patched at H'${toHex(result.trampolineAt, 5)} -- nothing to write\n`);
-	process.stderr.write(`trigger with: ${toHexBytes(triggerSysEx())}\n`);
+	process.stderr.write(`trigger with: ${toHexBytes(triggerMessage())}\n`);
 	process.exit(0);
 }
 
@@ -266,4 +266,4 @@ if (result.isUnchanged) {
 const target = out || input.replace(/(\.[^./\\]+)?$/u, '_patched$1');
 fs.writeFileSync(target, result.rom);
 process.stderr.write(`\nwrote ${target}\n`);
-process.stderr.write(`trigger with: ${toHexBytes(triggerSysEx())}\n`);
+process.stderr.write(`trigger with: ${toHexBytes(triggerMessage())}\n`);

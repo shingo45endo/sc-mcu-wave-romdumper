@@ -18,8 +18,9 @@ import process from 'node:process';
 import util from 'node:util';
 import crypto from 'node:crypto';
 
-import {calcCrc32} from '../lib/rom_search.js';
-import {convertToRomImage, convertToPortOrder, getScrambleNames, toHeaderText, looksLikeWaveRom} from '../lib/wave_scramble.js';
+import {toHex} from '../lib/format.js';
+import {calcCrc32, swapBytes} from '../lib/rom_search.js';
+import {convertToRomImage, convertToPortOrder, getScrambleNames, getHeaderText, looksLikeWaveRom} from '../lib/wave_scramble.js';
 
 function printUsageAndExit(message) {
 	if (message) {
@@ -30,24 +31,8 @@ function printUsageAndExit(message) {
 	process.exit((message) ? 2 : 0);
 }
 
-function toHex32(value) {
-	return value.toString(16).toUpperCase().padStart(8, '0');
-}
-
-// Swap the two bytes of every word. Its own inverse.
-function swapBytes(bytes) {
-	const out = bytes.slice();
-	for (let i = 0; i + 1 < out.length; i += 2) {
-		const first = out[i];
-		out[i] = out[i + 1];
-		out[i + 1] = first;
-	}
-
-	return out;
-}
-
-function isSame(a, b) {
-	return (a.length === b.length) && a.every((byte, i) => (byte === b[i]));
+function isSame(left, right) {
+	return (left.length === right.length) && left.every((byte, i) => (byte === right[i]));
 }
 
 function readInputFile(input) {
@@ -95,24 +80,24 @@ if (isCheck) {
 	if (inputs.length !== 2) {
 		printUsageAndExit('--check takes exactly two files');
 	}
-	const expected = readInputFile(inputs[0]);
-	const actual = convertToRomImage(readInputFile(inputs[1]), {scramble});
-	const n = Math.min(expected.length, actual.length);
+	const chipBytes = readInputFile(inputs[0]);
+	const dumpImage = convertToRomImage(readInputFile(inputs[1]), {scramble});
+	const compareSize = Math.min(chipBytes.length, dumpImage.length);
 	let badCount = 0;
-	let first = -1;
-	for (let i = 0; i < n; i++) {
-		if (expected[i] !== actual[i]) {
-			if (first < 0) {
-				first = i;
+	let firstBadAt = -1;
+	for (let i = 0; i < compareSize; i++) {
+		if (chipBytes[i] !== dumpImage[i]) {
+			if (firstBadAt < 0) {
+				firstBadAt = i;
 			}
 			badCount++;
 		}
 	}
-	process.stderr.write(`${path.basename(inputs[0])}: ${expected.length} bytes\n`);
-	process.stderr.write(`${path.basename(inputs[1])}: ${actual.length} bytes as a ROM image\n`);
-	process.stderr.write(`compared ${n} bytes, ${badCount} differ${(first < 0) ? '' : ` (first at H'${first.toString(16).toUpperCase()})`}\n`);
+	process.stderr.write(`${path.basename(inputs[0])}: ${chipBytes.length} bytes\n`);
+	process.stderr.write(`${path.basename(inputs[1])}: ${dumpImage.length} bytes as a ROM image\n`);
+	process.stderr.write(`compared ${compareSize} bytes, ${badCount} differ${(firstBadAt < 0) ? '' : ` (first at H'${firstBadAt.toString(16).toUpperCase()})`}\n`);
 	// A wave ROM is 16 bits wide, so a reader can hand one back the other way round.
-	if (badCount > 0 && isSame(swapBytes(expected), actual)) {
+	if (badCount > 0 && isSame(swapBytes(chipBytes), dumpImage)) {
 		process.stderr.write('  they are the same image: one of them was read out the other way round,\n' +
 			'  which a 16 bit wide ROM allows\n');
 	}
@@ -148,9 +133,9 @@ for (const input of inputs) {
 
 	const isValidWaveRom = (isReverse || looksLikeWaveRom(out));
 	process.stderr.write(`${path.basename(input)} -> ${path.join(dir, name)}\n`);
-	process.stderr.write(`  header: ${toHeaderText(out)}\n`);
+	process.stderr.write(`  header: ${getHeaderText(out)}\n`);
 	// The two a ROM set lists, so that this can be compared against one without keeping a copy of it here.
-	process.stderr.write(`  crc32:  ${toHex32(calcCrc32(out))}\n`);
+	process.stderr.write(`  crc32:  ${toHex(calcCrc32(out), 8)}\n`);
 	process.stderr.write(`  sha1:   ${crypto.createHash('sha1').update(out).digest('hex')}\n`);
 	if (!isValidWaveRom) {
 		failCount++;

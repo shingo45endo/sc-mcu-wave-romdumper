@@ -18,9 +18,8 @@ import util from 'node:util';
 
 import {FileDumpReceiver} from '../lib/file_dump.js';
 import {toHex} from '../lib/format.js';
-import {findDevices, isPlausibleSize} from '../lib/probe_map_55.js';
 import {loadCapture} from '../lib/sysex.js';
-import {convertToRomImage, toHeaderText, looksLikeWaveRom} from '../lib/wave_scramble.js';
+import {convertToRomImage, getHeaderText, looksLikeWaveRom} from '../lib/wave_scramble.js';
 
 // The source tags a file table entry carries. Defined for real by SRC_MCU and SRC_PCM in src/55/dumper.inc;
 // nothing here reads a built table, it only writes the assembler source for one.
@@ -94,9 +93,9 @@ const windows = [];
 let mcu = null;
 let header = null;
 for (const file of files) {
-	const m = /^W([0-9A-Fa-f]{6})\.BIN$/u.exec(file.name);
-	if (m) {
-		windows.push({base: parseInt(m[1], 16), bytes: file.bytes, file});
+	const match = /^W([0-9A-Fa-f]{6})\.BIN$/u.exec(file.name);
+	if (match) {
+		windows.push({base: parseInt(match[1], 16), bytes: file.bytes, file});
 	} else if (/^HEADER\.BIN$/iu.test(file.name)) {
 		header = file;
 	} else if (/MCU/iu.test(file.name)) {
@@ -118,11 +117,11 @@ for (const window of windows) {
 		continue;
 	}
 
-	const k = toHexKey(window.bytes);
-	if (seenBases.has(k)) {
-		window.mirrorOf = seenBases.get(k);
+	const contentKey = toHexKey(window.bytes);
+	if (seenBases.has(contentKey)) {
+		window.mirrorOf = seenBases.get(contentKey);
 	} else {
-		seenBases.set(k, window.base);
+		seenBases.set(contentKey, window.base);
 	}
 }
 
@@ -144,10 +143,10 @@ for (const window of windows) {
 
 process.stderr.write('\n');
 if (header) {
-	const raw = toHeaderText(header.bytes);
-	const desc = toHeaderText(convertToRomImage(header.bytes.slice(0, 112), {bits: 20}).slice(0, 32));
-	process.stderr.write(`  window at address 0, as received : ${raw}\n`);
-	process.stderr.write(`  ...as a ROM image                : ${desc}\n`);
+	const rawHeaderText = getHeaderText(header.bytes);
+	const imageHeaderText = getHeaderText(convertToRomImage(header.bytes.slice(0, 112), {bits: 20}).slice(0, 32));
+	process.stderr.write(`  window at address 0, as received : ${rawHeaderText}\n`);
+	process.stderr.write(`  ...as a ROM image                : ${imageHeaderText}\n`);
 	process.stderr.write((looksLikeWaveRom(convertToRomImage(header.bytes.slice(0, 112), {bits: 20})))
 		? '  that reads as a Roland header, so this model uses the scrambling we know\n'
 		: '  that is not a Roland header - this model scrambles differently, so\n' +
@@ -184,6 +183,58 @@ for (const device of devices) {
 
 // Layouts are named by their device sizes, one per 2 MiB slot, because several synths share one.
 const configName = `${(hasMcu) ? 'mcu-' : ''}wave-${devices.map((device) => `${device.size >> 20}m`).join('')}`;
+
+// `windows` is the probe's windows in address order, each already classified as {base, isConstant, mirrorOf};
+// `step` is the spacing between them. Returns [{base, size}] in address order.
+function findDevices(windows, step) {
+	const periodByBase = findPeriods(windows);
+	const devices = [];
+	for (let i = 0; i < windows.length;) {
+		if (windows[i].isConstant || windows[i].mirrorOf !== undefined) {
+			i++;
+			continue;
+		}
+		const from = windows[i].base;
+		while (i < windows.length && !windows[i].isConstant &&
+			windows[i].mirrorOf === undefined) {
+			i++;
+		}
+		const to = (i < windows.length)
+			? windows[i].base : windows[i - 1].base + step;
+		devices.push(...splitRun(from, to, periodByBase));
+	}
+	return devices;
+}
+
+// base -> the size its first mirror implies
+function findPeriods(windows) {
+	const periodByBase = new Map();
+	for (const window of windows) {
+		if (window.mirrorOf !== undefined && !periodByBase.has(window.mirrorOf)) {
+			periodByBase.set(window.mirrorOf, window.base - window.mirrorOf);
+		}
+	}
+	return periodByBase;
+}
+
+// One run of populated windows, cut at every address something mirrors.
+function splitRun(from, to, periodByBase) {
+	const seams = [...periodByBase.keys()].filter((base) => (base > from && base < to)).
+		sort((a, b) => a - b);
+	const segments = [];
+	for (let at = from; at < to;) {
+		const size = periodByBase.get(at) ?? (seams.find((base) => (base > at)) ?? to) - at;
+		segments.push({base: at, size});
+		at += size;
+	}
+	return segments;
+}
+
+// A mask ROM is a power of two. Anything else means the windows are too far apart to have caught a seam,
+// and the size is really two devices or more.
+function isPlausibleSize(size) {
+	return size > 0 && (size & (size - 1)) === 0;
+}
 
 // Assembler source for a table, in the form src/55/table-*.asm uses. Lives here rather than in lib/ because turning a
 // probe result into something that can be assembled is the one thing this tool is for.

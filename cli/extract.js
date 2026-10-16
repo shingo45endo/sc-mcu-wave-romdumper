@@ -20,9 +20,9 @@ import process from 'node:process';
 import url from 'node:url';
 import util from 'node:util';
 
-import {BulkDumpReceiver, toAddress} from '../lib/bulk_dump.js';
-import {FileDumpReceiver} from '../lib/file_dump.js';
-import {getBulkDumpResult, getFileDumpResults} from '../lib/dump_result.js';
+import {BulkDumpReceiver, getBulkDumpResult} from '../lib/bulk_dump.js';
+import {FileDumpReceiver, getFileDumpResults} from '../lib/file_dump.js';
+import {parseAddress} from '../lib/gs_message.js';
 import {loadCapture} from '../lib/sysex.js';
 
 const ROOT = path.join(path.dirname(url.fileURLToPath(import.meta.url)), '..');
@@ -79,12 +79,12 @@ for (const input of inputs) {
 	} catch (e) {
 		printUsageAndExit(`cannot read ${input}: ${e.message}`);
 	}
-	const one = loadCapture(bytes);
-	messages.push(...one);
-	process.stderr.write(`read ${path.basename(input)}: ${bytes.length} bytes, ${one.length} message(s)\n`);
+	const captureMessages = loadCapture(bytes);
+	messages.push(...captureMessages);
+	process.stderr.write(`read ${path.basename(input)}: ${bytes.length} bytes, ${captureMessages.length} message(s)\n`);
 }
 
-const isFileDump = messages.some((m) => (m[1] === 0x7e && m[3] === 0x07));
+const isFileDump = messages.some((message) => (message[1] === 0x7e && message[3] === 0x07));
 const files = (isFileDump) ? readFileDump() : readBulkDump();
 
 if (!files.length) {
@@ -147,25 +147,25 @@ function readBulkDump() {
 
 		return [];
 	}
-	let best = null;
+	let bestMatch = null;
 	for (const set of sets) {
 		const rx = new BulkDumpReceiver(set.regions);
 		for (const message of messages) {
 			rx.feed(message);
 		}
 		const result = rx.getResult();
-		if (!best || result.holes.length < best.result.holes.length || (!best.result.size && result.size)) {
-			best = {set, rx, result};
+		if (!bestMatch || result.holes.length < bestMatch.result.holes.length || (!bestMatch.result.size && result.size)) {
+			bestMatch = {set, rx, result};
 		}
 	}
-	if (!best.result.size) {
+	if (!bestMatch.result.size) {
 		process.stderr.write('\nno file header in the capture, so its size and name are not known\n');
 
 		return [];
 	}
-	process.stderr.write(`areas: ${best.set.names.join(', ')}\n`);
+	process.stderr.write(`areas: ${bestMatch.set.names.join(', ')}\n`);
 
-	return [getBulkDumpResult(best.rx)];
+	return [getBulkDumpResult(bestMatch.rx)];
 }
 
 // Every distinct set of areas the published models read back, with the models that use it.
@@ -181,7 +181,7 @@ function getRegionSets() {
 		if (!model.readRegions?.length) {
 			continue;
 		}
-		const regions = model.readRegions.map((region) => ({addr: toAddress(region.addr), size: region.size}));
+		const regions = model.readRegions.map((region) => ({addr: parseAddress(region.addr), size: region.size}));
 		const id = JSON.stringify(regions);
 		if (!sets.has(id)) {
 			sets.set(id, {regions, names: []});
